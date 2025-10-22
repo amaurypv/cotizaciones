@@ -1,10 +1,13 @@
-export const numeroALetras = (numero) => {
+export const numeroALetras = (numero, moneda = 'M.N.') => {
   const unidades = ['', 'UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
   const decenas = ['', '', 'VEINTE', 'TREINTA', 'CUARENTA', 'CINCUENTA', 'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA'];
   const especiales = ['DIEZ', 'ONCE', 'DOCE', 'TRECE', 'CATORCE', 'QUINCE', 'DIECISÉIS', 'DIECISIETE', 'DIECIOCHO', 'DIECINUEVE'];
   const centenas = ['', 'CIENTO', 'DOSCIENTOS', 'TRESCIENTOS', 'CUATROCIENTOS', 'QUINIENTOS', 'SEISCIENTOS', 'SETECIENTOS', 'OCHOCIENTOS', 'NOVECIENTOS'];
 
-  if (numero === 0) return 'CERO PESOS 00/100 M.N.';
+  const monedaTexto = moneda === 'USD' ? 'DÓLARES' : 'PESOS';
+  const monedaSufijo = moneda === 'USD' ? 'USD' : 'M.N.';
+
+  if (numero === 0) return `CERO ${monedaTexto} 00/100 ${monedaSufijo}`;
 
   let entero = Math.floor(numero);
   const centavos = Math.round((numero - entero) * 100);
@@ -72,5 +75,5 @@ export const numeroALetras = (numero) => {
     resultado = 'CERO';
   }
 
-  return `${resultado.trim()} PESOS ${centavos.toString().padStart(2, '0')}/100 M.N.`;
+  return `${resultado.trim()} ${monedaTexto} ${centavos.toString().padStart(2, '0')}/100 ${monedaSufijo}`;
 };

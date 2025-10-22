@@ -1,6 +1,32 @@
 import jsPDF from 'jspdf';
 
-export const generateNativePDF = (quote, totals, numeroALetras) => {
+// Función auxiliar para cargar imagen como base64
+const loadImageAsBase64 = (url) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+};
+
+export const generateNativePDF = async (quote, totals, numeroALetras) => {
+  // Cargar el logo
+  let logoBase64 = null;
+  try {
+    logoBase64 = await loadImageAsBase64('/LOGO GUBA.png');
+  } catch (error) {
+    console.warn('No se pudo cargar el logo, se usará texto alternativo');
+  }
+
   // Crear documento PDF en formato carta
   const doc = new jsPDF('portrait', 'pt', 'letter');
 
@@ -20,7 +46,7 @@ export const generateNativePDF = (quote, totals, numeroALetras) => {
   let currentY = margins.top;
 
   // Header de la empresa
-  currentY = addCompanyHeader(doc, margins, currentY, quote);
+  currentY = addCompanyHeader(doc, margins, currentY, quote, logoBase64);
 
   // Información del cliente
   currentY = addClientInfo(doc, margins, currentY, quote, contentWidth);
@@ -29,7 +55,7 @@ export const generateNativePDF = (quote, totals, numeroALetras) => {
   currentY = addProductsTable(doc, margins, currentY, quote, contentWidth);
 
   // Totales
-  currentY = addTotals(doc, margins, currentY, totals, numeroALetras, contentWidth);
+  currentY = addTotals(doc, margins, currentY, totals, numeroALetras, contentWidth, quote);
 
   // Condiciones de venta
   currentY = addSalesConditions(doc, margins, currentY, quote, contentWidth);
@@ -46,15 +72,21 @@ export const generateNativePDF = (quote, totals, numeroALetras) => {
 };
 
 // Función para agregar header de la empresa
-const addCompanyHeader = (doc, margins, startY, quote) => {
+const addCompanyHeader = (doc, margins, startY, quote, logoBase64) => {
   let y = startY;
 
-  // Título principal
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(25, 50, 150); // Azul
-  doc.text('QUÍMICA INDUSTRIAL AVANZADA GUBA', margins.left, y);
-  y += 20;
+  // Logo de la empresa o texto alternativo
+  if (logoBase64) {
+    doc.addImage(logoBase64, 'PNG', margins.left, y, 120, 30);
+    y += 35;
+  } else {
+    // Si no hay logo, usar el texto
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(25, 50, 150);
+    doc.text('QUÍMICA INDUSTRIAL AVANZADA GUBA', margins.left, y);
+    y += 20;
+  }
 
   // Información fiscal y dirección en líneas compactas
   doc.setFontSize(8);
@@ -68,27 +100,34 @@ const addCompanyHeader = (doc, margins, startY, quote) => {
   y += 15;
 
   // Cuadro de cotización en la derecha
-  const boxWidth = 180;
-  const boxHeight = 40;
-  const boxX = margins.left + 350;
+  const boxWidth = 200;
+  const boxHeight = 50;
+  const boxX = margins.left + 330;
   const boxY = startY - 5;
 
   // Fondo azul
   doc.setFillColor(25, 50, 150);
   doc.rect(boxX, boxY, boxWidth, boxHeight, 'F');
 
-  // Texto blanco
+  // Texto blanco - Título "Cotización"
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Cotización ${quote.folio || 'COT0001-25'}`, boxX + 10, boxY + 25);
+  doc.text('COTIZACIÓN', boxX + 10, boxY + 12);
 
-  // Fecha debajo del cuadro
-  doc.setTextColor(0, 0, 0);
-  doc.setFontSize(8);
+  // Folio dentro del cuadro
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
+  const folioLines = doc.splitTextToSize(quote.folio || 'COT0001-25', boxWidth - 20);
+  doc.text(folioLines, boxX + 10, boxY + 25);
+
+  // Fecha dentro del cuadro
+  doc.setFontSize(8);
   const fecha = new Date(quote.fecha).toLocaleDateString('es-MX');
-  doc.text(`Fecha: ${fecha}`, boxX + 10, boxY + boxHeight + 15);
+  doc.text(`Fecha: ${fecha}`, boxX + 10, boxY + 42);
+
+  // Restaurar color de texto a negro para el resto del documento
+  doc.setTextColor(0, 0, 0);
 
   // Línea separadora
   y += 5;
@@ -153,11 +192,12 @@ const addProductsTable = (doc, margins, startY, quote, contentWidth) => {
   // Headers de la tabla
   const rowHeight = 20;
   const columns = [
-    { title: 'Clave', width: 60 },
-    { title: 'Cantidad', width: 60 },
+    { title: 'Clave', width: 50 },
+    { title: 'Cantidad', width: 50 },
     { title: 'Unidad', width: 60 },
-    { title: 'Descripción', width: 200 },
-    { title: 'Precio', width: 70 },
+    { title: 'Descripción', width: 160 },
+    { title: 'Presentación', width: 70 },
+    { title: 'Precio', width: 60 },
     { title: 'Importe', width: 80 }
   ];
 
@@ -178,10 +218,19 @@ const addProductsTable = (doc, margins, startY, quote, contentWidth) => {
 
   // Filas de productos
   quote.productos.forEach(producto => {
-    doc.setDrawColor(0, 0, 0);
-    doc.rect(margins.left, y, contentWidth, rowHeight, 'D');
-
     doc.setFont('helvetica', 'normal');
+
+    // Calcular líneas necesarias para la descripción
+    const descripcion = producto.descripcion || '';
+    const descripcionLines = doc.splitTextToSize(descripcion, columns[3].width - 10);
+    const numLines = descripcionLines.length;
+
+    // Altura de fila dinámica (mínimo 20pt, 10pt por cada línea adicional)
+    const dynamicRowHeight = Math.max(rowHeight, 15 + (numLines * 10));
+
+    doc.setDrawColor(0, 0, 0);
+    doc.rect(margins.left, y, contentWidth, dynamicRowHeight, 'D');
+
     x = margins.left;
 
     // Clave
@@ -196,32 +245,36 @@ const addProductsTable = (doc, margins, startY, quote, contentWidth) => {
     doc.text(producto.unidad || '', x + 5, y + 12);
     x += columns[2].width;
 
-    // Descripción (con wrap si es necesario)
-    const descripcion = producto.descripcion || '';
-    if (descripcion.length > 35) {
-      const lines = doc.splitTextToSize(descripcion, columns[3].width - 10);
-      doc.text(lines[0], x + 5, y + 12);
-    } else {
-      doc.text(descripcion, x + 5, y + 12);
-    }
+    // Descripción (múltiples líneas)
+    doc.text(descripcionLines, x + 5, y + 10);
     x += columns[3].width;
+
+    // Presentación
+    const presentacion = producto.presentacion || '';
+    doc.text(presentacion, x + 5, y + 12);
+    x += columns[4].width;
 
     // Precio
     doc.text(`$${parseFloat(producto.precio || 0).toFixed(2)}`, x + 5, y + 12);
-    x += columns[4].width;
+    x += columns[5].width;
 
     // Importe
     doc.text(`$${producto.importe.toFixed(2)}`, x + 5, y + 12);
 
-    y += rowHeight;
+    y += dynamicRowHeight;
   });
 
   return y + 10;
 };
 
 // Función para agregar totales
-const addTotals = (doc, margins, startY, totals, numeroALetras, contentWidth) => {
+const addTotals = (doc, margins, startY, totals, numeroALetras, contentWidth, quote) => {
   let y = startY;
+
+  // Determinar la moneda de la cotización (usar la del primer producto)
+  const moneda = quote.productos && quote.productos.length > 0
+    ? quote.productos[0].moneda
+    : 'M.N.';
 
   // Cantidad con letra
   const leftBoxWidth = 350;
@@ -237,7 +290,7 @@ const addTotals = (doc, margins, startY, totals, numeroALetras, contentWidth) =>
   doc.text('Cantidad con letra', margins.left + 5, y + 12);
 
   doc.setFont('helvetica', 'normal');
-  const cantidadLetras = numeroALetras(totals.total);
+  const cantidadLetras = numeroALetras(totals.total, moneda);
   const lines = doc.splitTextToSize(cantidadLetras, leftBoxWidth - 10);
   doc.text(lines, margins.left + 5, y + 25);
 
@@ -297,8 +350,12 @@ const addTermsAndObservations = (doc, margins, startY, quote, contentWidth) => {
   y += 12;
 
   doc.setFont('helvetica', 'normal');
-  doc.text(quote.terminos, margins.left, y);
-  y += 12;
+  // Dividir el texto en múltiples líneas si es necesario
+  const terminosLines = doc.splitTextToSize(quote.terminos, contentWidth - 10);
+  doc.text(terminosLines, margins.left, y);
+  y += (terminosLines.length * 10) + 5;
+
+  // Leyenda de presentaciones
   doc.text('P=PORRÓN T=TAMBOR C=CONTENEDOR O TOTE S=SACO E=ENVASE CB=CUBETA', margins.left, y);
 
   return y + 15;

@@ -15,6 +15,11 @@ const PDFTemplate = forwardRef(({ quote, totals, numeroALetras }, ref) => {
     });
   };
 
+  // Determinar la moneda de la cotización (usar la del primer producto)
+  const moneda = quote.productos && quote.productos.length > 0
+    ? quote.productos[0].moneda
+    : 'M.N.';
+
   return (
     <div ref={ref} className="bg-white font-sans text-sm leading-none" style={{
       fontFamily: 'Arial, sans-serif',
@@ -29,7 +34,7 @@ const PDFTemplate = forwardRef(({ quote, totals, numeroALetras }, ref) => {
       <div className="border-b border-blue-900 pb-1 mb-2">
         <div className="flex justify-between items-start">
           <div className="w-1/2">
-            <h1 className="text-sm font-bold text-blue-900 mb-0">QUÍMICA INDUSTRIAL AVANZADA GUBA</h1>
+            <img src="/LOGO GUBA.png" alt="QUÍMICA INDUSTRIAL AVANZADA GUBA" style={{ height: '40px', marginBottom: '4px' }} />
             <div className="text-xs text-gray-700 leading-none">
               <p className="mb-0"><strong>QIA1004237M9</strong> | <strong>601 - General de Ley Personas Morales</strong></p>
               <p className="mb-0">DE LAS INDUSTRIAS 7301,A, NOMBRE DE DIOS, C.P.31110, Chihuahua, Chihuahua, MÉXICO</p>
@@ -97,7 +102,7 @@ const PDFTemplate = forwardRef(({ quote, totals, numeroALetras }, ref) => {
           <tr>
             <td colSpan="4" className="border border-black p-2">
               <div className="font-bold">Cantidad con letra</div>
-              <div className="text-xs mt-1">{numeroALetras(totals.total)}</div>
+              <div className="text-xs mt-1">{numeroALetras(totals.total, moneda)}</div>
             </td>
             <td className="border border-black p-2 text-right font-bold">Subtotal</td>
             <td className="border border-black p-2 text-right font-bold">${totals.subtotal.toFixed(2)}</td>
@@ -131,9 +136,9 @@ const PDFTemplate = forwardRef(({ quote, totals, numeroALetras }, ref) => {
       {quote.terminos && (
         <div className="mb-3 text-xs">
           <h3 className="font-bold mb-1">Términos y observaciones</h3>
-          <div className="leading-none">
-            {quote.terminos}<br/>
-            P=PORRÓN T=TAMBOR C=CONTENEDOR O TOTE S=SACO E=ENVASE CB=CUBETA
+          <div className="leading-normal">
+            <p className="mb-2">{quote.terminos}</p>
+            <p className="mb-0">P=PORRÓN T=TAMBOR C=CONTENEDOR O TOTE S=SACO E=ENVASE CB=CUBETA</p>
           </div>
         </div>
       )}

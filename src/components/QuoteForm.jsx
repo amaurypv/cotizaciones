@@ -257,7 +257,7 @@ const QuoteForm = () => {
       };
 
       // Generar PDF nativo (mucho más liviano)
-      const doc = generateNativePDF(quote, totals, numeroALetras);
+      const doc = await generateNativePDF(quote, totals, numeroALetras);
 
       const folio = quote.folio || generarFolio();
       doc.save(`cotizacion_${folio}.pdf`);
