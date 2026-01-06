@@ -21,8 +21,7 @@ function App() {
             folio: cot.folio,
             fecha: cot.fecha,
             cliente: cot.cliente_nombre,
-            productos: cot.proveedores || 'Sin productos', // El backend concatena proveedores, pero el frontend espera un resumen de productos. 
-            // Por ahora usamos esto o ajustamos el backend.
+            productos: cot.productos_resumen || 'Sin productos',
             total: cot.total,
             fechaCreacion: cot.created_at
           }));

@@ -189,7 +189,7 @@ def get_cotizaciones():
         SELECT 
             c.*, 
             SUM(ci.cantidad * ci.costo) as total_costo,
-            GROUP_CONCAT(DISTINCT ci.proveedor) as proveedores,
+            GROUP_CONCAT(ci.descripcion, ', ') as productos_resumen,
             GROUP_CONCAT(DISTINCT ci.moneda) as monedas
         FROM cotizaciones c
         LEFT JOIN cotizacion_items ci ON c.folio = ci.cotizacion_folio
