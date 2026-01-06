@@ -77,8 +77,8 @@ const addCompanyHeader = (doc, margins, startY, quote, logoBase64) => {
 
   // Logo de la empresa o texto alternativo
   if (logoBase64) {
-    doc.addImage(logoBase64, 'PNG', margins.left, y, 120, 30);
-    y += 35;
+    doc.addImage(logoBase64, 'PNG', margins.left, y, 156, 39);
+    y += 45;
   } else {
     // Si no hay logo, usar el texto
     doc.setFontSize(14);
@@ -94,7 +94,9 @@ const addCompanyHeader = (doc, margins, startY, quote, logoBase64) => {
   doc.setTextColor(100, 100, 100); // Gris
   doc.text('QIA1004237M9 | 601 - General de Ley Personas Morales', margins.left, y);
   y += 12;
-  doc.text('DE LAS INDUSTRIAS 7301,A, NOMBRE DE DIOS, C.P.31110, Chihuahua, Chihuahua, MÉXICO', margins.left, y);
+  doc.text('DE LAS INDUSTRIAS 7301,A, NOMBRE DE DIOS, C.P.31110', margins.left, y);
+  y += 12;
+  doc.text('Chihuahua, Chihuahua, MÉXICO', margins.left, y);
   y += 12;
   doc.text('Tel: 6144819184 | Email: ventas@quimicaguba.com', margins.left, y);
   y += 15;
@@ -155,23 +157,23 @@ const addClientInfo = (doc, margins, startY, quote, contentWidth) => {
   y += 15;
 
   // Contenido del cliente
-  const clientHeight = 30;
+  const clientHeight = 50;
   doc.rect(margins.left, y, contentWidth, clientHeight, 'D');
 
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  let clientY = y + 10;
+  let clientY = y + 12;
 
   if (quote.cliente.rfc) {
     doc.setFont('helvetica', 'bold');
-    doc.text(quote.cliente.rfc, margins.left + 5, clientY);
-    clientY += 10;
+    doc.text(`RFC: ${quote.cliente.rfc}`, margins.left + 5, clientY);
+    clientY += 12;
   }
 
   if (quote.cliente.nombre) {
     doc.setFont('helvetica', 'bold');
     doc.text(quote.cliente.nombre, margins.left + 5, clientY);
-    clientY += 10;
+    clientY += 12;
   }
 
   doc.setFont('helvetica', 'normal');

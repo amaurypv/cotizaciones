@@ -6,7 +6,7 @@ import { numeroALetras } from '../utils/numeroALetras';
 import { generateNativePDF } from '../utils/pdfGenerator';
 import { getClientsDB, saveClientData, getClientData, getClientNames } from '../utils/clientsDB';
 
-const QuoteForm = () => {
+const QuoteForm = ({ onSave, initialQuote }) => {
   const printRef = useRef();
 
   const [quote, setQuote] = useState({
@@ -46,35 +46,56 @@ const QuoteForm = () => {
   const [savedClients, setSavedClients] = useState([]);
   const [showClientSaved, setShowClientSaved] = useState(false);
 
-  // Lista de clientes predefinidos (basada en tu Excel)
-  const clientes = [
-    'CHEMICOMAYS DE MEXICO S DE RL DE CV',
-    'AXAY INDUSTRIAL',
-    'ALFREDO GARCIA CHAVEZ',
-    'AIR CRUISERS COMPANY, LLC DBA SAFRAN AEROSYSTEMS EVACUATION',
-    'GRUPO AMERICAN INDUSTRIES',
-    'QUIMICA ESPECIALIZADA DARR',
-    'MARIA GUADALUPE RIVAS ARMENDARIZ',
-    'HAAS TCM DE MEXICO',
-    'SAFRAN ELECTRICAL & POWER MEXICO',
-    'YESENIA HOLGUIN SAUCEDO',
-    'BM CASTINGS'
-  ];
+  const [productosCatalogo, setProductosCatalogo] = useState([]);
+  const [clientesBase, setClientesBase] = useState([]);
+  const [loadingDB, setLoadingDB] = useState(false);
 
-  // Productos químicos comunes con claves
-  const productosComunes = [
-    { clave: 'Q001', descripcion: 'ALCOHOL ISOPROPILICO', precio: 180.00 },
-    { clave: 'Q002', descripcion: 'HIPOCLORITO DE SODIO AL 13%', precio: 7.04 },
-    { clave: 'Q003', descripcion: 'ACETONA INDUSTRIAL', precio: 25.00 },
-    { clave: 'Q004', descripcion: 'THINNER ESTANDAR', precio: 150.00 },
-    { clave: 'Q005', descripcion: 'SOSA CAUSTICA LIQUIDA AL 50%', precio: 12.50 },
-    { clave: 'Q006', descripcion: 'AGUA TRIDESTILADA', precio: 15.00 },
-    { clave: 'Q007', descripcion: 'METIL ETIL CETONA (MEK)', precio: 35.00 },
-    { clave: 'Q008', descripcion: 'ALCOHOL METILICO', precio: 22.00 },
-    { clave: 'Q009', descripcion: 'TOLUENO', precio: 26.00 },
-    { clave: 'Q010', descripcion: 'VARSOL', precio: 24.00 },
-    { clave: 'Q121', descripcion: 'MONOETILENGLICOL', precio: 24.50 }
-  ];
+  useEffect(() => {
+    const fetchDB = async () => {
+      setLoadingDB(true);
+      try {
+        const resClientes = await fetch('http://localhost:8000/clientes');
+        if (resClientes.ok) setClientesBase(await resClientes.json());
+
+        const resProd = await fetch('http://localhost:8000/productos_catalogo');
+        if (resProd.ok) setProductosCatalogo(await resProd.json());
+      } catch (error) {
+        console.error('Error fetching DB for form:', error);
+      } finally {
+        setLoadingDB(false);
+      }
+    };
+    fetchDB();
+  }, []);
+
+  // Efecto para cargar cotización inicial para editar
+  useEffect(() => {
+    if (initialQuote) {
+      setQuote({
+        folio: initialQuote.folio,
+        fecha: initialQuote.fecha,
+        cliente: {
+          nombre: initialQuote.cliente.nombre || "",
+          contacto: initialQuote.cliente.contacto || "",
+          telefono: initialQuote.cliente.telefono || "",
+          email: initialQuote.cliente.email || "",
+          direccion: initialQuote.cliente.direccion || "",
+          planta: initialQuote.cliente.planta || "",
+          rfc: initialQuote.cliente.rfc || ""
+        },
+        productos: initialQuote.productos.map(p => ({
+          ...p,
+          id: p.id || Math.random() // Asegurar ID para React
+        })),
+        condiciones: initialQuote.condiciones || {
+          validez: '30',
+          tiempoEntrega: 'Inmediata',
+          condicionesPago: '30 dias fecha factura'
+        },
+        terminos: initialQuote.terminos || ""
+      });
+    }
+  }, [initialQuote]);
 
   const unidades = ['KILOGRAMO', 'LITRO', 'PIEZA', 'GALON USA', 'TONELADA', 'METRO CUBICO'];
 
@@ -142,31 +163,46 @@ const QuoteForm = () => {
     }));
   };
 
-  // Guardar datos del cliente actual
-  const guardarDatosCliente = () => {
+  // Guardar datos del cliente actual en el backend
+  const guardarDatosCliente = async () => {
     if (!quote.cliente.nombre) {
       alert('Debe especificar un nombre de cliente para guardar');
       return;
     }
 
     const clientData = {
-      contacto: quote.cliente.contacto,
-      telefono: quote.cliente.telefono,
-      email: quote.cliente.email,
-      direccion: quote.cliente.direccion,
-      planta: quote.cliente.planta,
-      rfc: quote.cliente.rfc
+      nombre: quote.cliente.nombre,
+      contacto: quote.cliente.contacto || "",
+      telefono: quote.cliente.telefono || "",
+      email: quote.cliente.email || "",
+      direccion: quote.cliente.direccion || "",
+      planta: quote.cliente.planta || "",
+      rfc: quote.cliente.rfc || ""
     };
 
-    saveClientData(quote.cliente.nombre, clientData);
+    try {
+      const response = await fetch('http://localhost:8000/clientes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(clientData),
+      });
 
-    // Actualizar lista de clientes guardados
-    const clientNames = getClientNames();
-    setSavedClients(clientNames);
+      if (response.ok) {
+        // Refrescar lista de clientes
+        const resClientes = await fetch('http://localhost:8000/clientes');
+        if (resClientes.ok) setClientesBase(await resClientes.json());
 
-    // Mostrar confirmación
-    setShowClientSaved(true);
-    setTimeout(() => setShowClientSaved(false), 2000);
+        setShowClientSaved(true);
+        setTimeout(() => setShowClientSaved(false), 2000);
+      } else {
+        alert('Error al guardar cliente en el servidor');
+      }
+    } catch (error) {
+      console.error('Error saving client:', error);
+      alert('Error de conexión al guardar cliente');
+    }
   };
 
   const actualizarProducto = (index, campo, valor) => {
@@ -180,7 +216,7 @@ const QuoteForm = () => {
       );
     }
 
-    setQuote({...quote, productos: nuevosProductos});
+    setQuote({ ...quote, productos: nuevosProductos });
   };
 
   const agregarProducto = () => {
@@ -207,42 +243,35 @@ const QuoteForm = () => {
       ...nuevosProductos[index],
       clave: productoSeleccionado.clave,
       descripcion: productoSeleccionado.descripcion,
+      unidad: productoSeleccionado.unidad || nuevosProductos[index].unidad,
       precio: productoSeleccionado.precio,
+      moneda: productoSeleccionado.moneda || nuevosProductos[index].moneda,
       importe: calcularImporte(nuevosProductos[index].cantidad || 0, productoSeleccionado.precio)
     };
-    setQuote({...quote, productos: nuevosProductos});
+    setQuote({ ...quote, productos: nuevosProductos });
   };
 
   const eliminarProducto = (index) => {
     if (quote.productos.length > 1) {
       const nuevosProductos = quote.productos.filter((_, i) => i !== index);
-      setQuote({...quote, productos: nuevosProductos});
+      setQuote({ ...quote, productos: nuevosProductos });
     }
   };
 
   const seleccionarCliente = (nombreCliente) => {
-    // Primero intentar cargar desde la base de datos guardada
-    cargarDatosCliente(nombreCliente);
-
-    // Si no hay datos guardados, usar datos predefinidos como respaldo
-    const clientesConDatos = {
-      'CHEMICOMAYS DE MEXICO S DE RL DE CV': {
-        contacto: 'FRANCISO JAVIER JIMENEZ',
-        planta: 'ZODIAC',
-        rfc: 'CHE060227AI6'
-      },
-      'AXAY INDUSTRIAL': {
-        rfc: 'AIN060227AI6'
-      }
-    };
-
-    const datosCliente = clientesConDatos[nombreCliente];
+    const datosCliente = clientesBase.find(c => c.nombre === nombreCliente);
     if (datosCliente) {
       setQuote(prev => ({
         ...prev,
         cliente: {
           ...prev.cliente,
-          ...datosCliente // Solo sobrescribir si hay datos predefinidos
+          nombre: nombreCliente,
+          contacto: datosCliente.contacto || "",
+          telefono: datosCliente.telefono || "",
+          email: datosCliente.email || "",
+          direccion: datosCliente.direccion || "",
+          planta: datosCliente.planta || "",
+          rfc: datosCliente.rfc || ""
         }
       }));
     }
@@ -265,6 +294,85 @@ const QuoteForm = () => {
     } catch (error) {
       console.error('Error al generar PDF:', error);
       alert('Error al generar el PDF');
+    }
+  };
+
+  const handleSave = async () => {
+    if (!quote.cliente.nombre) {
+      alert('Debe especificar un nombre de cliente para guardar la cotización');
+      return;
+    }
+
+    const folio = quote.folio || generarFolio();
+
+    // Preparar el objeto para el backend según el modelo Pydantic
+    const cotizacionParaBackend = {
+      folio: folio,
+      fecha: quote.fecha,
+      cliente: {
+        nombre: quote.cliente.nombre,
+        contacto: quote.cliente.contacto || "",
+        telefono: quote.cliente.telefono || "",
+        email: quote.cliente.email || "",
+        direccion: quote.cliente.direccion || "",
+        planta: quote.cliente.planta || "",
+        rfc: quote.cliente.rfc || ""
+      },
+      productos: quote.productos.filter(p => p.descripcion).map(p => ({
+        clave: p.clave || "SIN_CLAVE",
+        descripcion: p.descripcion,
+        cantidad: parseFloat(p.cantidad) || 0,
+        unidad: p.unidad,
+        precio: parseFloat(p.precio) || 0,
+        importe: parseFloat(p.importe) || 0,
+        moneda: p.moneda,
+        presentacion: p.presentacion || "",
+        proveedor: p.proveedor || "",
+        costo: parseFloat(p.costo) || 0
+      })),
+      condiciones: {
+        validez: quote.condiciones.validez,
+        tiempoEntrega: quote.condiciones.tiempoEntrega,
+        condicionesPago: quote.condiciones.condicionesPago
+      },
+      terminos: quote.terminos || "",
+      total: calcularTotal()
+    };
+
+    try {
+      const response = await fetch('http://localhost:8000/cotizaciones', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(cotizacionParaBackend),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+
+        // Actualizar el estado local para el historial (formato simplificado para la tabla)
+        const nuevaCotizacionLocal = {
+          id: Date.now(), // El backend generará su propio ID, esto es para la UI inmediata
+          folio: folio,
+          fecha: quote.fecha,
+          cliente: quote.cliente.nombre,
+          productos: quote.productos.map(p => p.descripcion).filter(d => d).join(', '),
+          total: calcularTotal(),
+          fechaCreacion: new Date().toISOString()
+        };
+
+        onSave(nuevaCotizacionLocal);
+        setQuote(prev => ({ ...prev, folio: folio }));
+        alert('Cotización guardada exitosamente en la base de datos');
+      } else {
+        const errorData = await response.json();
+        console.error('Error al guardar en backend:', errorData);
+        alert('Error al guardar en el servidor: ' + (errorData.detail || 'Error desconocido'));
+      }
+    } catch (error) {
+      console.error('Error de red:', error);
+      alert('No se pudo conectar con el servidor. ¿Está ejecutándose el backend?');
     }
   };
 
@@ -324,7 +432,7 @@ const QuoteForm = () => {
             <input
               type="date"
               value={quote.fecha}
-              onChange={(e) => setQuote({...quote, fecha: e.target.value})}
+              onChange={(e) => setQuote({ ...quote, fecha: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
@@ -336,12 +444,12 @@ const QuoteForm = () => {
               <input
                 type="text"
                 value={quote.folio}
-                onChange={(e) => setQuote({...quote, folio: e.target.value})}
+                onChange={(e) => setQuote({ ...quote, folio: e.target.value })}
                 placeholder="Ej: AXAYINDUSTRIAL23092025"
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:ring-blue-500 focus:border-blue-500"
               />
               <button
-                onClick={() => setQuote({...quote, folio: generarFolio()})}
+                onClick={() => setQuote({ ...quote, folio: generarFolio() })}
                 className="px-3 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700"
               >
                 Auto
@@ -357,7 +465,7 @@ const QuoteForm = () => {
               value={quote.condiciones.validez}
               onChange={(e) => setQuote({
                 ...quote,
-                condiciones: {...quote.condiciones, validez: e.target.value}
+                condiciones: { ...quote.condiciones, validez: e.target.value }
               })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             />
@@ -382,7 +490,7 @@ const QuoteForm = () => {
                   value={quote.cliente.nombre}
                   onChange={(e) => setQuote({
                     ...quote,
-                    cliente: {...quote.cliente, nombre: e.target.value}
+                    cliente: { ...quote.cliente, nombre: e.target.value }
                   })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Nombre del cliente"
@@ -398,22 +506,11 @@ const QuoteForm = () => {
                     value=""
                   >
                     <option value="">-- Seleccionar cliente --</option>
-                    {savedClients.length > 0 && (
-                      <optgroup label="Clientes Guardados">
-                        {savedClients.map((cliente, index) => (
-                          <option key={`saved-${index}`} value={cliente}>
-                            📁 {cliente}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    <optgroup label="Clientes Predefinidos">
-                      {clientes.map((cliente, index) => (
-                        <option key={`preset-${index}`} value={cliente}>
-                          {cliente}
-                        </option>
-                      ))}
-                    </optgroup>
+                    {clientesBase.map((cte, index) => (
+                      <option key={index} value={cte.nombre}>
+                        {cte.nombre} {cte.rfc ? `(${cte.rfc})` : ''}
+                      </option>
+                    ))}
                   </select>
                   <button
                     type="button"
@@ -442,7 +539,7 @@ const QuoteForm = () => {
                 value={quote.cliente.contacto}
                 onChange={(e) => setQuote({
                   ...quote,
-                  cliente: {...quote.cliente, contacto: e.target.value}
+                  cliente: { ...quote.cliente, contacto: e.target.value }
                 })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Persona de contacto"
@@ -458,7 +555,7 @@ const QuoteForm = () => {
                 value={quote.cliente.planta}
                 onChange={(e) => setQuote({
                   ...quote,
-                  cliente: {...quote.cliente, planta: e.target.value}
+                  cliente: { ...quote.cliente, planta: e.target.value }
                 })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Ej: ZODIAC"
@@ -474,7 +571,7 @@ const QuoteForm = () => {
                 value={quote.cliente.telefono}
                 onChange={(e) => setQuote({
                   ...quote,
-                  cliente: {...quote.cliente, telefono: e.target.value}
+                  cliente: { ...quote.cliente, telefono: e.target.value }
                 })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               />
@@ -489,7 +586,7 @@ const QuoteForm = () => {
                 value={quote.cliente.rfc}
                 onChange={(e) => setQuote({
                   ...quote,
-                  cliente: {...quote.cliente, rfc: e.target.value}
+                  cliente: { ...quote.cliente, rfc: e.target.value }
                 })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                 placeholder="RFC del cliente"
@@ -570,7 +667,7 @@ const QuoteForm = () => {
                         <select
                           onChange={(e) => {
                             if (e.target.value) {
-                              const productoSeleccionado = productosComunes.find(p => p.clave === e.target.value);
+                              const productoSeleccionado = productosCatalogo.find(p => p.clave === e.target.value);
                               if (productoSeleccionado) {
                                 seleccionarProducto(index, productoSeleccionado);
                               }
@@ -579,10 +676,10 @@ const QuoteForm = () => {
                           className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
                           value=""
                         >
-                          <option value="">-- Producto común --</option>
-                          {productosComunes.map((prod, idx) => (
+                          <option value="">-- Buscar en catálogo --</option>
+                          {productosCatalogo.map((prod, idx) => (
                             <option key={idx} value={prod.clave}>
-                              {prod.clave} - {prod.descripcion} - ${prod.precio}
+                              {prod.clave} - {prod.descripcion} - ${prod.precio} ({prod.moneda})
                             </option>
                           ))}
                         </select>
@@ -622,13 +719,23 @@ const QuoteForm = () => {
                       </span>
                     </td>
                     <td className="px-3 py-2">
-                      <button
-                        onClick={() => eliminarProducto(index)}
-                        className="text-red-600 hover:text-red-800"
-                        disabled={quote.productos.length === 1}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => guardarProductoEnBase(producto)}
+                          className="text-blue-600 hover:text-blue-800"
+                          title="Guardar en catálogo"
+                        >
+                          <Save className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => eliminarProducto(index)}
+                          className="text-red-600 hover:text-red-800"
+                          disabled={quote.productos.length === 1}
+                          title="Eliminar fila"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -650,7 +757,7 @@ const QuoteForm = () => {
                 value={quote.condiciones.tiempoEntrega}
                 onChange={(e) => setQuote({
                   ...quote,
-                  condiciones: {...quote.condiciones, tiempoEntrega: e.target.value}
+                  condiciones: { ...quote.condiciones, tiempoEntrega: e.target.value }
                 })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               />
@@ -664,7 +771,7 @@ const QuoteForm = () => {
                 value={quote.condiciones.condicionesPago}
                 onChange={(e) => setQuote({
                   ...quote,
-                  condiciones: {...quote.condiciones, condicionesPago: e.target.value}
+                  condiciones: { ...quote.condiciones, condicionesPago: e.target.value }
                 })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               />
@@ -675,7 +782,7 @@ const QuoteForm = () => {
               </label>
               <textarea
                 value={quote.terminos}
-                onChange={(e) => setQuote({...quote, terminos: e.target.value})}
+                onChange={(e) => setQuote({ ...quote, terminos: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                 rows={4}
                 placeholder="Ej: TAMBORES DE PLASTICO DE 222 KG, PRECIOS CON TAMBOR INCLUIDO..."
@@ -706,6 +813,13 @@ const QuoteForm = () => {
 
         {/* Acciones */}
         <div className="border-t pt-10 flex justify-end space-x-4">
+          <button
+            onClick={handleSave}
+            className="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center space-x-2 shadow-sm transition-all active:scale-95"
+          >
+            <Database className="w-4 h-4" />
+            <span>Guardar Historial</span>
+          </button>
           <button
             onClick={() => setShowPreview(true)}
             className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center space-x-2"
