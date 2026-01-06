@@ -1,131 +1,90 @@
-# Sistema de Cotizaciones
+# Sistema de Cotizaciones GUBA
 
-Sistema web de generación de cotizaciones profesionales en PDF para productos químicos, desarrollado con React y Vite.
+Sistema web de generación de cotizaciones profesionales en PDF para productos químicos, desarrollado con React (Frontend) y FastAPI con SQLite (Backend).
 
 ## Características principales
 
-- **Generación de cotizaciones**: Interfaz intuitiva para crear cotizaciones con múltiples productos
-- **Gestión de clientes**: Base de datos local de clientes con autocompletado
-- **Productos predefinidos**: Catálogo de productos químicos con claves y precios
-- **Generación de PDF**: Exportación a PDF optimizado y ligero
-- **Cálculo automático**: Subtotales, IVA y totales calculados automáticamente
-- **Folios automáticos**: Generación de folios únicos basados en fecha y cliente
-- **Vista previa**: Visualización antes de generar el PDF final
+- **Generación de cotizaciones**: Interfaz intuitiva para crear cotizaciones con múltiples productos.
+- **Persistencia en Base de Datos**: Los datos se guardan de forma permanente en una base de datos SQLite (`cotizaciones.db`).
+- **Gestión de Clientes y Productos**: Catálogos dinámicos cargados directamente desde la base de datos.
+- **Historial Completo**: Visualización y búsqueda de todas las cotizaciones anteriores.
+- **Edición desde Historial**: Carga cotizaciones pasadas para editarlas o usarlas como base.
+- **Generación de PDF**: Exportación optimizada con logotipo dinámico y formato profesional.
+- **Cálculo automático**: Subtotales, IVA y totales según la moneda seleccionada (M.N./USD).
 
 ## Tecnologías utilizadas
 
-- **React 19** - Framework de UI
-- **Vite** - Build tool y dev server
-- **Tailwind CSS** - Framework de estilos
-- **jsPDF** - Generación de PDFs
-- **lucide-react** - Librería de iconos
+### Frontend (src/)
+- **React 19**
+- **Vite**
+- **Tailwind CSS**
+- **jsPDF** (Generación local de PDFs)
+- **Lucide React** (Iconografía)
+
+### Backend (root)
+- **FastAPI** (Servidor API Python)
+- **SQLite** (Motor de base de datos)
+- **Uvicorn** (Servidor ASGI)
+- **Pydantic** (Validación de datos)
 
 ## Estructura del proyecto
 
 ```
-src/
-├── components/
-│   ├── Header.jsx          # Encabezado de la aplicación
-│   ├── QuoteForm.jsx       # Formulario principal de cotizaciones
-│   └── PDFTemplate.jsx     # Template para generación de PDF
-├── utils/
-│   ├── clientsDB.js        # Gestión de base de datos de clientes
-│   ├── numeroALetras.js    # Conversión de números a letras
-│   └── pdfGenerator.js     # Lógica de generación de PDF
-└── App.jsx                 # Componente principal
+.
+├── backend.py              # Servidor API de Python (FastAPI + SQLite)
+├── cotizaciones.db         # Archivo de base de datos SQL
+├── package.json            # Scripts y dependencias de NPM
+├── src/
+│   ├── components/
+│   │   ├── ManagementView.jsx # Gestión de Historial, Clientes y Catálogo
+│   │   ├── QuoteForm.jsx      # Formulario de cotización inteligente
+│   │   ├── Header.jsx         # Navegación
+│   │   └── PDFTemplate.jsx    # Componente visual para el PDF
+│   ├── utils/
+│   │   ├── api.js             # Servicios de conexión con el backend
+│   │   ├── pdfGenerator.js    # Lógica de dibujo del PDF nativo
+│   │   └── numeroALetras.js   # Conversión de importes a texto
+│   └── App.jsx                # Orquestador principal
 ```
 
-## Instalación
+## Requisitos previos
 
-1. Clonar el repositorio:
-```bash
-git clone <url-del-repositorio>
-cd cotizaciones
-```
+- Node.js (v18+)
+- Python 3.9+
+- Pip (instalador de paquetes de Python)
 
-2. Instalar dependencias:
-```bash
-npm install
-```
+## Instalación y Configuración
 
-3. Iniciar el servidor de desarrollo:
+1. **Dependencias del Frontend:**
+   ```bash
+   npm install
+   ```
+
+2. **Dependencias del Backend:**
+   ```bash
+   pip install fastapi uvicorn
+   ```
+
+## Cómo ejecutar
+
+El sistema está configurado para iniciar ambos motores (Frontend y Backend) con un solo comando:
+
 ```bash
 npm run dev
 ```
 
-4. Abrir en el navegador: `http://localhost:5173`
-
-## Scripts disponibles
-
-- `npm run dev` - Inicia el servidor de desarrollo
-- `npm run build` - Construye la aplicación para producción
-- `npm run preview` - Preview de la build de producción
-- `npm run lint` - Ejecuta el linter
+Esto abrirá automáticamente el navegador en `http://localhost:5173`. El backend correrá en el puerto `8000`.
 
 ## Uso
 
-### Crear una nueva cotización
+### Historial y Gestión
+- Entra a la pestaña **Gestión** para ver el historial de cotizaciones, la base de clientes y el catálogo de productos.
+- Pulsa el icono del **lápiz** en el historial para cargar una cotización anterior y editarla.
 
-1. Completar los datos básicos (fecha, folio)
-2. Ingresar información del cliente o seleccionar uno guardado
-3. Agregar productos con cantidades y precios
-4. Configurar condiciones de entrega y pago
-5. Hacer clic en "Vista Previa" para revisar
-6. Descargar el PDF final
-
-### Gestionar clientes
-
-- **Guardar cliente**: Completar los datos del cliente y hacer clic en el botón "Guardar"
-- **Cargar cliente**: Seleccionar del dropdown "Clientes Guardados"
-- Los datos se almacenan localmente en el navegador (localStorage)
-
-### Productos predefinidos
-
-El sistema incluye un catálogo de productos químicos comunes:
-- Alcohol Isopropílico
-- Hipoclorito de Sodio
-- Acetona Industrial
-- Thinner Estándar
-- Sosa Cáustica Líquida
-- Y más...
-
-## Configuración
-
-### Agregar nuevos productos
-
-Editar el array `productosComunes` en `src/components/QuoteForm.jsx`:
-
-```javascript
-const productosComunes = [
-  { clave: 'Q001', descripcion: 'PRODUCTO', precio: 100.00 },
-  // ...
-];
-```
-
-### Agregar clientes predefinidos
-
-Editar el array `clientes` en `src/components/QuoteForm.jsx`:
-
-```javascript
-const clientes = [
-  'NOMBRE DE EMPRESA 1',
-  'NOMBRE DE EMPRESA 2',
-  // ...
-];
-```
-
-## Build para producción
-
-```bash
-npm run build
-```
-
-Los archivos optimizados se generarán en el directorio `dist/`.
+### Guardar Datos en Vivo
+- Mientras haces una cotización, puedes pulsar el icono de **disco azul** en la fila de un producto para guardarlo permanentemente en el catálogo.
+- Lo mismo aplica para los clientes en la sección de datos del cliente.
 
 ## Licencia
 
-Proyecto privado
-
-## Soporte
-
-Para reportar problemas o sugerencias, crear un issue en el repositorio.
+Proyecto privado - Química Industrial Avanzada GUBA
