@@ -136,6 +136,7 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                         <th className="px-4 py-3 text-left">Cliente</th>
                                         <th className="px-4 py-3 text-left">Folio</th>
                                         <th className="px-4 py-3 text-left">Resumen Productos</th>
+                                        <th className="px-4 py-3 text-right">Costo (Int)</th>
                                         <th className="px-4 py-3 text-right">Total</th>
                                         <th className="px-4 py-3 text-center">Acciones</th>
                                     </tr>
@@ -155,6 +156,9 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                                 </td>
                                                 <td className="px-4 py-4 text-gray-500 truncate max-w-xs" title={cot.productos}>
                                                     {cot.productos}
+                                                </td>
+                                                <td className="px-4 py-4 text-right font-medium text-gray-500">
+                                                    ${(cot.total_costo || 0).toFixed(2)}
                                                 </td>
                                                 <td className="px-4 py-4 text-right font-bold text-gray-900">
                                                     ${cot.total.toFixed(2)}
@@ -192,6 +196,8 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                         <th className="px-4 py-3 text-left">Clave</th>
                                         <th className="px-4 py-3 text-left">Descripción</th>
                                         <th className="px-4 py-3 text-left">Unidad</th>
+                                        <th className="px-4 py-3 text-left">Proveedor</th>
+                                        <th className="px-4 py-3 text-right">Costo (Int)</th>
                                         <th className="px-4 py-3 text-right">Precio</th>
                                         <th className="px-4 py-3 text-center">Moneda</th>
                                     </tr>
@@ -203,6 +209,8 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                                 <td className="px-4 py-4 font-mono text-xs text-purple-600 font-semibold">{prod.clave}</td>
                                                 <td className="px-4 py-4 text-gray-900 font-medium">{prod.descripcion}</td>
                                                 <td className="px-4 py-4 text-gray-500">{prod.unidad}</td>
+                                                <td className="px-4 py-4 text-gray-500 text-xs">{prod.proveedor || '-'}</td>
+                                                <td className="px-4 py-4 text-right text-gray-500">${(prod.costo || 0).toFixed(2)}</td>
                                                 <td className="px-4 py-4 text-right font-bold text-gray-900">${prod.precio.toFixed(2)}</td>
                                                 <td className="px-4 py-4 text-center">
                                                     <span className="px-2 py-1 bg-blue-100 text-blue-600 rounded text-xs font-bold">

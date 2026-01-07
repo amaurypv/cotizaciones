@@ -31,7 +31,9 @@ const QuoteForm = ({ onSave, initialQuote }) => {
         clave: '',
         moneda: 'M.N.',
         precio: '',
-        importe: 0
+        importe: 0,
+        proveedor: '',
+        costo: ''
       }
     ],
     condiciones: {
@@ -229,7 +231,9 @@ const QuoteForm = ({ onSave, initialQuote }) => {
       clave: '',
       moneda: 'M.N.',
       precio: '',
-      importe: 0
+      importe: 0,
+      proveedor: '',
+      costo: ''
     };
     setQuote({
       ...quote,
@@ -246,6 +250,8 @@ const QuoteForm = ({ onSave, initialQuote }) => {
       unidad: productoSeleccionado.unidad || nuevosProductos[index].unidad,
       precio: productoSeleccionado.precio,
       moneda: productoSeleccionado.moneda || nuevosProductos[index].moneda,
+      proveedor: productoSeleccionado.proveedor || nuevosProductos[index].proveedor || '',
+      costo: productoSeleccionado.costo || nuevosProductos[index].costo || 0,
       importe: calcularImporte(nuevosProductos[index].cantidad || 0, productoSeleccionado.precio)
     };
     setQuote({ ...quote, productos: nuevosProductos });
@@ -255,6 +261,45 @@ const QuoteForm = ({ onSave, initialQuote }) => {
     if (quote.productos.length > 1) {
       const nuevosProductos = quote.productos.filter((_, i) => i !== index);
       setQuote({ ...quote, productos: nuevosProductos });
+    }
+  };
+
+  const guardarProductoEnBase = async (producto) => {
+    if (!producto.clave || !producto.descripcion) {
+      alert('El producto debe tener clave y descripción para guardarse en el catálogo');
+      return;
+    }
+
+    const itemCatalogo = {
+      clave: producto.clave,
+      descripcion: producto.descripcion,
+      precio: parseFloat(producto.precio) || 0,
+      unidad: producto.unidad,
+      moneda: producto.moneda,
+      proveedor: producto.proveedor || "",
+      costo: parseFloat(producto.costo) || 0
+    };
+
+    try {
+      const response = await fetch('http://localhost:8000/productos_catalogo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(itemCatalogo),
+      });
+
+      if (response.ok) {
+        // Refrescar catálogo local
+        const resProd = await fetch('http://localhost:8000/productos_catalogo');
+        if (resProd.ok) setProductosCatalogo(await resProd.json());
+        alert(`Producto "${producto.clave}" guardado exitosamente en el catálogo`);
+      } else {
+        alert('Error al guardar el producto en el catálogo');
+      }
+    } catch (error) {
+      console.error('Error saving catalog product:', error);
+      alert('Error de conexión al guardar producto');
     }
   };
 
@@ -617,6 +662,8 @@ const QuoteForm = ({ onSave, initialQuote }) => {
                   <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Unidad</th>
                   <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Descripción</th>
                   <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Presentación</th>
+                  <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Proveedor (Int)</th>
+                  <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Costo (Int)</th>
                   <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Moneda</th>
                   <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Precio</th>
                   <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Importe</th>
@@ -692,6 +739,24 @@ const QuoteForm = ({ onSave, initialQuote }) => {
                         onChange={(e) => actualizarProducto(index, 'presentacion', e.target.value)}
                         className="w-24 px-2 py-1 border border-gray-300 rounded text-sm"
                         placeholder="E - 4 Lt"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="text"
+                        value={producto.proveedor}
+                        onChange={(e) => actualizarProducto(index, 'proveedor', e.target.value)}
+                        className="w-24 px-2 py-1 border border-gray-100 bg-gray-50 rounded text-xs"
+                        placeholder="Info Interna"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={producto.costo}
+                        onChange={(e) => actualizarProducto(index, 'costo', e.target.value)}
+                        className="w-20 px-2 py-1 border border-gray-100 bg-gray-50 rounded text-xs"
                       />
                     </td>
                     <td className="px-3 py-2">

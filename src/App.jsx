@@ -23,6 +23,7 @@ function App() {
             cliente: cot.cliente_nombre,
             productos: cot.productos_resumen || 'Sin productos',
             total: cot.total,
+            total_costo: cot.total_costo,
             fechaCreacion: cot.created_at
           }));
           setHistorialCotizaciones(formattedData);

@@ -58,6 +58,8 @@ class ProductoCatalogo(BaseModel):
     precio: float
     unidad: str = "KILOGRAMO"
     moneda: str = "M.N."
+    proveedor: Optional[str] = ""
+    costo: Optional[float] = 0.0
 
 # --- Funciones de Base de Datos ---
 def init_db():
@@ -83,7 +85,9 @@ def init_db():
         descripcion TEXT,
         precio REAL,
         unidad TEXT,
-        moneda TEXT
+        moneda TEXT,
+        proveedor TEXT,
+        costo REAL
     )''')
     
     # Tabla Cotizaciones
@@ -168,10 +172,10 @@ def save_producto_catalogo(producto: ProductoCatalogo):
     c = conn.cursor()
     try:
         c.execute('''INSERT OR REPLACE INTO catalogo_productos 
-                     (clave, descripcion, precio, unidad, moneda) 
-                     VALUES (?, ?, ?, ?, ?)''',
+                     (clave, descripcion, precio, unidad, moneda, proveedor, costo) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?)''',
                   (producto.clave, producto.descripcion, producto.precio, 
-                   producto.unidad, producto.moneda))
+                   producto.unidad, producto.moneda, producto.proveedor, producto.costo))
         conn.commit()
     except Exception as e:
         conn.close()

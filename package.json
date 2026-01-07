@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"bgBlue,bgGreen\" \"python3 backend.py\" \"vite --open\"",
+    "dev": "python3 dev_manager.py",
     "dev:frontend": "vite --open",
     "build": "vite build",
     "lint": "eslint .",
