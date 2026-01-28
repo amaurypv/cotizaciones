@@ -1,27 +1,65 @@
 import sqlite3
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, status, Request
+import time
 from pydantic import BaseModel
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from datetime import datetime, timedelta
 import uvicorn
 import os
-from datetime import datetime
+from dotenv import load_dotenv
+
+# Cargar variables de entorno desde .env si existe
+load_dotenv()
+
+# --- Configuración de Seguridad ---
+# En una app real, estas variables vendrían de .env
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "guba_super_secret_key_change_me_en_production")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 app = FastAPI()
 
-# Configurar CORS para permitir peticiones desde el frontend (React)
+# Configurar CORS restringido para producción
+ALLOWED_ORIGINS = [
+    "https://cotizacionesguba.work",
+    "https://www.cotizacionesguba.work",
+    "http://localhost:5173",  # Para debugging local si es necesario
+    "http://127.0.0.1:5173"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En producción, especificar el dominio exacto
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Almacenamiento simple para límite de intentos (IP: [intentos, último_intento])
+login_attempts = {}
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_NAME = os.path.join(BASE_DIR, "cotizaciones.db")
 
 # --- Modelos Pydantic ---
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+
+class User(BaseModel):
+    username: str
+    password: str
+
 class Cliente(BaseModel):
     nombre: str
     contacto: Optional[str] = ""
@@ -61,11 +99,66 @@ class ProductoCatalogo(BaseModel):
     proveedor: Optional[str] = ""
     costo: Optional[float] = 0.0
 
+# --- Utilidades de Seguridad ---
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="No se pudo validar las credenciales",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        token_data = TokenData(username=username)
+    except JWTError:
+        raise credentials_exception
+    
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT username FROM usuarios WHERE username = ?", (token_data.username,))
+    user = c.fetchone()
+    conn.close()
+    
+    if user is None:
+        raise credentials_exception
+    return user[0]
+
 # --- Funciones de Base de Datos ---
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     
+    # Tabla Usuarios
+    c.execute('''CREATE TABLE IF NOT EXISTS usuarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE,
+        password TEXT
+    )''')
+    
+    # Crear usuario por defecto si no existe (admin / admin_guba_2026)
+    c.execute("SELECT * FROM usuarios WHERE username = 'admin'")
+    if not c.fetchone():
+        hashed_pw = get_password_hash("admin_guba_2026")
+        c.execute("INSERT INTO usuarios (username, password) VALUES (?, ?)", ("admin", hashed_pw))
+
     # Tabla Clientes
     c.execute('''CREATE TABLE IF NOT EXISTS clientes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -127,10 +220,54 @@ def init_db():
 # Inicializar DB al arrancar
 init_db()
 
-# --- Endpoints ---
+# --- Endpoints de Autenticación ---
+
+@app.post("/token", response_model=Token)
+async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
+    client_ip = request.client.host
+    now = time.time()
+
+    # Verificar límite de intentos
+    if client_ip in login_attempts:
+        attempts, last_time = login_attempts[client_ip]
+        if attempts >= 5 and (now - last_time) < 60:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Demasiados intentos fallidos. Por seguridad, intente de nuevo en 1 minuto."
+            )
+        if (now - last_time) >= 60:
+            login_attempts[client_ip] = [0, now]
+
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT username, password FROM usuarios WHERE username = ?", (form_data.username,))
+    user = c.fetchone()
+    conn.close()
+    
+    if not user or not verify_password(form_data.password, user[1]):
+        # Registrar intento fallido
+        attempts, _ = login_attempts.get(client_ip, [0, now])
+        login_attempts[client_ip] = [attempts + 1, now]
+        
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario o contraseña incorrectos",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Si el login es exitoso, resetear intentos para esta IP
+    login_attempts[client_ip] = [0, now]
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user[0]}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+# --- Endpoints Protegidos ---
 
 @app.get("/clientes")
-def get_clientes():
+def get_clientes(current_user: str = Depends(get_current_user)):
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
@@ -140,7 +277,7 @@ def get_clientes():
     return [dict(row) for row in rows]
 
 @app.post("/clientes")
-def save_cliente(cliente: Cliente):
+def save_cliente(cliente: Cliente, current_user: str = Depends(get_current_user)):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     try:
@@ -157,7 +294,7 @@ def save_cliente(cliente: Cliente):
     return {"message": "Cliente guardado"}
 
 @app.get("/productos_catalogo")
-def get_productos_catalogo():
+def get_productos_catalogo(current_user: str = Depends(get_current_user)):
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
@@ -167,7 +304,7 @@ def get_productos_catalogo():
     return [dict(row) for row in rows]
 
 @app.post("/productos_catalogo")
-def save_producto_catalogo(producto: ProductoCatalogo):
+def save_producto_catalogo(producto: ProductoCatalogo, current_user: str = Depends(get_current_user)):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     try:
@@ -184,11 +321,10 @@ def save_producto_catalogo(producto: ProductoCatalogo):
     return {"message": "Producto guardado"}
 
 @app.get("/cotizaciones")
-def get_cotizaciones():
+def get_cotizaciones(current_user: str = Depends(get_current_user)):
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    # Query para obtener cotizaciones con costo total y proveedores concatenados
     c.execute("""
         SELECT 
             c.*, 
@@ -205,12 +341,11 @@ def get_cotizaciones():
     return [dict(row) for row in rows]
 
 @app.get("/cotizaciones/{folio}")
-def get_cotizacion(folio: str):
+def get_cotizacion(folio: str, current_user: str = Depends(get_current_user)):
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     
-    # Obtener cabecera
     c.execute("SELECT * FROM cotizaciones WHERE folio = ?", (folio,))
     cotizacion_row = c.fetchone()
     
@@ -218,11 +353,9 @@ def get_cotizacion(folio: str):
         conn.close()
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
     
-    # Obtener items
     c.execute("SELECT * FROM cotizacion_items WHERE cotizacion_folio = ?", (folio,))
     items_rows = c.fetchall()
     
-    # Obtener datos del cliente actualizados (opcional, pero útil)
     c.execute("SELECT * FROM clientes WHERE nombre = ?", (cotizacion_row['cliente_nombre'],))
     cliente_row = c.fetchone()
     
@@ -232,7 +365,6 @@ def get_cotizacion(folio: str):
     items_list = [dict(row) for row in items_rows]
     cliente_dict = dict(cliente_row) if cliente_row else {"nombre": cotizacion_row['cliente_nombre']}
     
-    # Reconstruir estructura para el frontend
     return {
         "folio": cotizacion_dict['folio'],
         "fecha": cotizacion_dict['fecha'],
@@ -248,11 +380,10 @@ def get_cotizacion(folio: str):
     }
 
 @app.post("/cotizaciones")
-def save_cotizacion(cotizacion: Cotizacion):
+def save_cotizacion(cotizacion: Cotizacion, current_user: str = Depends(get_current_user)):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     try:
-        # Guardar cliente primero (upsert)
         c.execute('''INSERT OR REPLACE INTO clientes 
                      (nombre, contacto, telefono, email, direccion, planta, rfc) 
                      VALUES (?, ?, ?, ?, ?, ?, ?)''',
@@ -260,7 +391,6 @@ def save_cotizacion(cotizacion: Cotizacion):
                    cotizacion.cliente.email, cotizacion.cliente.direccion, cotizacion.cliente.planta, 
                    cotizacion.cliente.rfc))
         
-        # Guardar cabecera de cotización
         created_at = datetime.now().isoformat()
         c.execute('''INSERT OR REPLACE INTO cotizaciones 
                      (folio, fecha, cliente_nombre, total, terminos, validez, tiempo_entrega, condiciones_pago, created_at) 
@@ -270,10 +400,8 @@ def save_cotizacion(cotizacion: Cotizacion):
                    cotizacion.condiciones['tiempoEntrega'], cotizacion.condiciones['condicionesPago'], 
                    created_at))
         
-        # Eliminar items anteriores si existen (para actualizaciones)
         c.execute("DELETE FROM cotizacion_items WHERE cotizacion_folio = ?", (cotizacion.folio,))
         
-        # Guardar items
         for item in cotizacion.productos:
             c.execute('''INSERT INTO cotizacion_items 
                          (cotizacion_folio, clave, descripcion, cantidad, unidad, precio, importe, 

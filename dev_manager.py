@@ -10,17 +10,19 @@ import shutil
 processes = []
 opened_browser = False
 
-# Prioritize Anaconda and common local paths
+# Prioritize common paths
 extra_paths = [
-    "/Users/amauryperezverdejo/opt/anaconda3/bin", 
     "/usr/local/bin", 
-    "/opt/homebrew/bin"
+    "/usr/bin",
+    "/bin",
+    "/usr/sbin",
+    "/sbin"
 ]
-current_path = os.environ.get("PATH", "")
-for p in reversed(extra_paths): # Insert at beginning in order
-    if p not in current_path:
-        current_path = p + os.pathsep + current_path
-os.environ["PATH"] = current_path
+if sys.platform == 'darwin': # Add Mac specifics only if on Mac
+    extra_paths.extend([
+        "/opt/homebrew/bin",
+        "/Users/amauryperezverdejo/.nvm/versions/node/v22.21.1/bin"
+    ])
 
 def get_binary(name):
     """Find a binary in the system PATH, prioritizing our extra_paths."""
@@ -35,6 +37,9 @@ def kill_ports():
     try:
         if sys.platform == 'darwin': # macOS
             subprocess.run("lsof -ti :8000,5173 | xargs kill -9", shell=True, stderr=subprocess.DEVNULL)
+        else: # Linux
+            # Try fuser first, then lsof
+            subprocess.run("fuser -k 8000/tcp 5173/tcp", shell=True, stderr=subprocess.DEVNULL)
     except Exception as e:
         print(f"Warning during cleanup: {e}")
 
@@ -45,16 +50,15 @@ def stream_output(pipe, prefix):
         if not line:
             break
         clean_line = line.strip()
-        if clean_line:
-            print(f"[{prefix}] {clean_line}")
-            sys.stdout.flush()
-            
-            # Detect Vite URL
-            if "localhost:5173" in clean_line and not opened_browser:
-                print(f"[MANAGER] Vite is ready. Opening browser...")
-                time.sleep(1)
-                webbrowser.open("http://localhost:5173")
-                opened_browser = True
+        print(f"[{prefix}] {clean_line}") # Print every line including empty ones
+        sys.stdout.flush()
+        
+        # Detect Vite URL
+        if ("127.0.0.1:5173" in clean_line or "localhost:5173" in clean_line) and not opened_browser:
+            print(f"[MANAGER] Vite is ready. Opening browser...")
+            time.sleep(2) # Aumentar a 2 segundos
+            webbrowser.open("http://127.0.0.1:5173")
+            opened_browser = True
     pipe.close()
 
 def signal_handler(sig, frame):
