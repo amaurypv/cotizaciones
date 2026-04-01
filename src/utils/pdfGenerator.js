@@ -46,7 +46,7 @@ export const generateNativePDF = async (quote, totals, numeroALetras) => {
   let currentY = margins.top;
 
   // Header de la empresa
-  currentY = addCompanyHeader(doc, margins, currentY, quote, logoBase64);
+  currentY = addCompanyHeader(doc, margins, currentY, quote, logoBase64, contentWidth);
 
   // Información del cliente
   currentY = addClientInfo(doc, margins, currentY, quote, contentWidth);
@@ -72,7 +72,7 @@ export const generateNativePDF = async (quote, totals, numeroALetras) => {
 };
 
 // Función para agregar header de la empresa
-const addCompanyHeader = (doc, margins, startY, quote, logoBase64) => {
+const addCompanyHeader = (doc, margins, startY, quote, logoBase64, contentWidth) => {
   let y = startY;
 
   // Logo de la empresa o texto alternativo
@@ -103,7 +103,7 @@ const addCompanyHeader = (doc, margins, startY, quote, logoBase64) => {
 
   // Cuadro de cotización en la derecha
   const boxWidth = 200;
-  const boxHeight = 50;
+  const boxHeight = 25; // Reducido para que solo contenga el título
   const boxX = margins.left + 330;
   const boxY = startY - 5;
 
@@ -111,31 +111,26 @@ const addCompanyHeader = (doc, margins, startY, quote, logoBase64) => {
   doc.setFillColor(25, 50, 150);
   doc.rect(boxX, boxY, boxWidth, boxHeight, 'F');
 
-  // Texto blanco - Título "Cotización"
+  // Texto blanco - Título "Cotización" con Folio
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text('COTIZACIÓN', boxX + 10, boxY + 12);
+  doc.text(`Cotización ${quote.folio || 'COT0001-25'}`, boxX + 10, boxY + 16);
 
-  // Folio dentro del cuadro
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  const folioLines = doc.splitTextToSize(quote.folio || 'COT0001-25', boxWidth - 20);
-  doc.text(folioLines, boxX + 10, boxY + 25);
-
-  // Fecha dentro del cuadro
-  doc.setFontSize(8);
-  const fecha = new Date(quote.fecha).toLocaleDateString('es-MX');
-  doc.text(`Fecha: ${fecha}`, boxX + 10, boxY + 42);
-
-  // Restaurar color de texto a negro para el resto del documento
+  // Fecha debajo del cuadro, alineada a la derecha
   doc.setTextColor(0, 0, 0);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  const fecha = new Date(quote.fecha).toLocaleDateString('es-MX');
+  const dateText = `Fecha: ${fecha}`;
+  const dateWidth = doc.getTextWidth(dateText);
+  doc.text(dateText, boxX + boxWidth - dateWidth, boxY + boxHeight + 15);
 
   // Línea separadora
   y += 5;
   doc.setDrawColor(25, 50, 150);
   doc.setLineWidth(1);
-  doc.line(margins.left, y, margins.left + 530, y);
+  doc.line(margins.left, y, margins.left + contentWidth, y);
 
   return y + 15;
 };
@@ -157,31 +152,39 @@ const addClientInfo = (doc, margins, startY, quote, contentWidth) => {
   y += 15;
 
   // Contenido del cliente
-  const clientHeight = 50;
+  const clientHeight = 55; // Ajustado ligeramente
   doc.rect(margins.left, y, contentWidth, clientHeight, 'D');
 
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   let clientY = y + 12;
 
-  if (quote.cliente.rfc) {
+  if (quote.customer?.rfc || quote.cliente?.rfc) {
     doc.setFont('helvetica', 'bold');
-    doc.text(`RFC: ${quote.cliente.rfc}`, margins.left + 5, clientY);
+    doc.text(`RFC: ${quote.customer?.rfc || quote.cliente?.rfc || 'RFC POR DEFINIR'}`, margins.left + 5, clientY);
     clientY += 12;
   }
 
-  if (quote.cliente.nombre) {
+  if (quote.cliente?.nombre) {
     doc.setFont('helvetica', 'bold');
     doc.text(quote.cliente.nombre, margins.left + 5, clientY);
     clientY += 12;
   }
 
   doc.setFont('helvetica', 'normal');
-  if (quote.cliente.contacto) {
+  if (quote.cliente?.contacto) {
     doc.text(`Atención: ${quote.cliente.contacto}`, margins.left + 5, clientY);
+    clientY += 12;
   }
-  if (quote.cliente.planta) {
-    doc.text(`Planta: ${quote.cliente.planta}`, margins.left + 300, clientY);
+
+  if (quote.cliente?.direccion) {
+    const dirLines = doc.splitTextToSize(quote.cliente.direccion, contentWidth - 10);
+    doc.text(dirLines, margins.left + 5, clientY);
+    clientY += (dirLines.length * 10);
+  }
+
+  if (quote.cliente?.planta) {
+    doc.text(`Planta: ${quote.cliente.planta}`, margins.left + 5, clientY);
   }
 
   return y + clientHeight + 15;
@@ -191,28 +194,30 @@ const addClientInfo = (doc, margins, startY, quote, contentWidth) => {
 const addProductsTable = (doc, margins, startY, quote, contentWidth) => {
   let y = startY;
 
-  // Headers de la tabla
+  // Headers de la tabla (Sincronizado con PDFTemplate)
   const rowHeight = 20;
   const columns = [
     { title: 'Clave', width: 50 },
     { title: 'Cantidad', width: 50 },
     { title: 'Unidad', width: 60 },
-    { title: 'Descripción', width: 160 },
-    { title: 'Presentación', width: 70 },
-    { title: 'Precio', width: 60 },
+    { title: 'Descripción', width: 228 }, // Ajustado para sumar 528 (contentWidth)
+    { title: 'Precio Unitario', width: 60 },
     { title: 'Importe', width: 80 }
   ];
 
   // Header de la tabla
-  doc.setFillColor(220, 220, 220);
+  doc.setFillColor(230, 230, 230); // Ligeramente más claro
+  doc.setDrawColor(0, 0, 0);
   doc.rect(margins.left, y, contentWidth, rowHeight, 'FD');
 
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
 
   let x = margins.left;
-  columns.forEach(col => {
-    doc.text(col.title, x + 5, y + 12);
+  columns.forEach((col, index) => {
+    const align = (index >= 4) ? 'right' : 'center'; // Precio e Importe a la derecha
+    const xPos = (index >= 4) ? x + col.width - 5 : x + (col.width / 2);
+    doc.text(col.title, xPos, y + 13, { align: align });
     x += col.width;
   });
 
@@ -222,13 +227,15 @@ const addProductsTable = (doc, margins, startY, quote, contentWidth) => {
   quote.productos.forEach(producto => {
     doc.setFont('helvetica', 'normal');
 
-    // Calcular líneas necesarias para la descripción
-    const descripcion = producto.descripcion || '';
-    const descripcionLines = doc.splitTextToSize(descripcion, columns[3].width - 10);
-    const numLines = descripcionLines.length;
+    // Preparar descripción con presentación integrada
+    const descText = producto.descripcion || '';
+    const presentacionText = producto.presentacion ? `Presentación: ${producto.presentacion}` : '';
 
-    // Altura de fila dinámica (mínimo 20pt, 10pt por cada línea adicional)
-    const dynamicRowHeight = Math.max(rowHeight, 15 + (numLines * 10));
+    const descLines = doc.splitTextToSize(descText, columns[3].width - 10);
+    const presLines = presentacionText ? doc.splitTextToSize(presentacionText, columns[3].width - 10) : [];
+
+    const numLines = descLines.length + presLines.length;
+    const dynamicRowHeight = Math.max(rowHeight, 12 + (numLines * 10));
 
     doc.setDrawColor(0, 0, 0);
     doc.rect(margins.left, y, contentWidth, dynamicRowHeight, 'D');
@@ -236,84 +243,97 @@ const addProductsTable = (doc, margins, startY, quote, contentWidth) => {
     x = margins.left;
 
     // Clave
-    doc.text(producto.clave || '', x + 5, y + 12);
+    doc.text(producto.clave || '', x + (columns[0].width / 2), y + 12, { align: 'center' });
     x += columns[0].width;
 
     // Cantidad
-    doc.text(producto.cantidad.toString(), x + 5, y + 12);
+    doc.text(producto.cantidad.toString(), x + (columns[1].width / 2), y + 12, { align: 'center' });
     x += columns[1].width;
 
     // Unidad
-    doc.text(producto.unidad || '', x + 5, y + 12);
+    doc.text(producto.unidad || '', x + (columns[2].width / 2), y + 12, { align: 'center' });
     x += columns[2].width;
 
-    // Descripción (múltiples líneas)
-    doc.text(descripcionLines, x + 5, y + 10);
+    // Descripción integrada y centrada
+    const descX = x + (columns[3].width / 2);
+    doc.text(descLines, descX, y + 10, { align: 'center' });
+    if (presentacionText) {
+      doc.setTextColor(100, 100, 100);
+      doc.setFontSize(7);
+      doc.text(presLines, descX, y + 10 + (descLines.length * 10), { align: 'center' });
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(8);
+    }
     x += columns[3].width;
 
-    // Presentación
-    const presentacion = producto.presentacion || '';
-    doc.text(presentacion, x + 5, y + 12);
+    // Precio
+    doc.text(`$${parseFloat(producto.precio || 0).toFixed(2)}`, x + columns[4].width - 5, y + 12, { align: 'right' });
     x += columns[4].width;
 
-    // Precio
-    doc.text(`$${parseFloat(producto.precio || 0).toFixed(2)}`, x + 5, y + 12);
-    x += columns[5].width;
-
     // Importe
-    doc.text(`$${producto.importe.toFixed(2)}`, x + 5, y + 12);
+    doc.text(`$${producto.importe.toFixed(2)}`, x + columns[5].width - 5, y + 12, { align: 'right' });
 
     y += dynamicRowHeight;
   });
 
-  return y + 10;
+  return y;
 };
 
-// Función para agregar totales
+// Función para agregar totales (Reestructurada para integrarse con la tabla)
 const addTotals = (doc, margins, startY, totals, numeroALetras, contentWidth, quote) => {
   let y = startY;
 
-  // Determinar la moneda de la cotización (usar la del primer producto)
+  // Sincronizar con los anchos de la tabla
+  const col1to4Width = 388; // Clave(50) + Cantidad(50) + Unidad(60) + Descripción(228)
+  const col5Width = 60;     // Precio
+  const col6Width = 80;     // Importe
+
   const moneda = quote.productos && quote.productos.length > 0
     ? quote.productos[0].moneda
     : 'M.N.';
 
-  // Cantidad con letra
-  const leftBoxWidth = 350;
-  const rightBoxWidth = contentWidth - leftBoxWidth - 10;
-
   doc.setDrawColor(0, 0, 0);
-  doc.rect(margins.left, y, leftBoxWidth, 60, 'D');
-  doc.rect(margins.left + leftBoxWidth + 10, y, rightBoxWidth, 60, 'D');
-
-  // Cantidad con letra
   doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Cantidad con letra', margins.left + 5, y + 12);
 
+  // Cuadro para "Cantidad con letra" (Izquierda, abarca las filas de totales)
+  const totalsSectionHeight = 20 + 20 + 25; // Subtotal(20) + IVA(20) + TOTAL(25)
+  doc.rect(margins.left, y, col1to4Width, totalsSectionHeight, 'D');
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Cantidad con letra', margins.left + 5, y + 10);
   doc.setFont('helvetica', 'normal');
   const cantidadLetras = numeroALetras(totals.total, moneda);
-  const lines = doc.splitTextToSize(cantidadLetras, leftBoxWidth - 10);
-  doc.text(lines, margins.left + 5, y + 25);
+  const letterLines = doc.splitTextToSize(cantidadLetras, col1to4Width - 10);
+  doc.text(letterLines, margins.left + 5, y + 20);
 
-  // Totales
-  const totalsX = margins.left + leftBoxWidth + 15;
-  let totalsY = y + 15;
+  // --- FILA SUBTOTAL ---
+  doc.rect(margins.left + col1to4Width, y, col5Width, 20, 'D');
+  doc.rect(margins.left + col1to4Width + col5Width, y, col6Width, 20, 'D');
 
   doc.setFont('helvetica', 'bold');
-  doc.text('Subtotal', totalsX, totalsY);
-  doc.text(`$${totals.subtotal.toFixed(2)}`, totalsX + 100, totalsY);
-  totalsY += 15;
+  doc.text('Subtotal', margins.left + col1to4Width + col5Width - 5, y + 13, { align: 'right' });
+  doc.text(`$${totals.subtotal.toFixed(2)}`, margins.left + contentWidth - 5, y + 13, { align: 'right' });
 
-  doc.text('(+) IVA %16', totalsX, totalsY);
-  doc.text(`$${totals.iva.toFixed(2)}`, totalsX + 100, totalsY);
-  totalsY += 15;
+  y += 20;
+
+  // --- FILA IVA ---
+  doc.rect(margins.left + col1to4Width, y, col5Width, 20, 'D');
+  doc.rect(margins.left + col1to4Width + col5Width, y, col6Width, 20, 'D');
+
+  doc.text('(+) IVA %16', margins.left + col1to4Width + col5Width - 5, y + 13, { align: 'right' });
+  doc.text(`$${totals.iva.toFixed(2)}`, margins.left + contentWidth - 5, y + 13, { align: 'right' });
+
+  y += 20;
+
+  // --- FILA TOTAL ---
+  doc.rect(margins.left + col1to4Width, y, col5Width, 25, 'D');
+  doc.rect(margins.left + col1to4Width + col5Width, y, col6Width, 25, 'D');
 
   doc.setFontSize(10);
-  doc.text('TOTAL', totalsX, totalsY);
-  doc.text(`$${totals.total.toFixed(2)}`, totalsX + 100, totalsY);
+  doc.text('TOTAL', margins.left + col1to4Width + col5Width - 5, y + 16, { align: 'right' });
+  doc.text(`$${totals.total.toFixed(2)}`, margins.left + contentWidth - 5, y + 16, { align: 'right' });
 
-  return y + 70;
+  return y + 40;
 };
 
 // Función para agregar condiciones de venta
@@ -334,12 +354,13 @@ const addSalesConditions = (doc, margins, startY, quote, contentWidth) => {
     `5.- Validez de la cotización: ${quote.condiciones?.validez || '30'} días`
   ];
 
+  doc.setLineHeightFactor(1.1);
   conditions.forEach(condition => {
     doc.text(condition, margins.left, y);
     y += 10;
   });
 
-  return y + 10;
+  return y + 5;
 };
 
 // Función para agregar términos y observaciones
@@ -352,12 +373,10 @@ const addTermsAndObservations = (doc, margins, startY, quote, contentWidth) => {
   y += 12;
 
   doc.setFont('helvetica', 'normal');
-  // Dividir el texto en múltiples líneas si es necesario
-  const terminosLines = doc.splitTextToSize(quote.terminos, contentWidth - 10);
+  const terminosLines = doc.splitTextToSize(quote.terminos || '', contentWidth - 10);
   doc.text(terminosLines, margins.left, y);
   y += (terminosLines.length * 10) + 5;
 
-  // Leyenda de presentaciones
   doc.text('P=PORRÓN T=TAMBOR C=CONTENEDOR O TOTE S=SACO E=ENVASE CB=CUBETA', margins.left, y);
 
   return y + 15;
@@ -366,11 +385,11 @@ const addTermsAndObservations = (doc, margins, startY, quote, contentWidth) => {
 // Función para agregar contacto y firmas
 const addContactAndSignatures = (doc, margins, startY, quote, contentWidth) => {
   let y = startY;
+  const pageWidth = doc.internal.pageSize.getWidth();
 
   // Agradecimiento centrado
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  const pageWidth = doc.internal.pageSize.getWidth();
 
   const agradecimiento = 'Agradeciendo de antemano su preferencia, quedo a sus órdenes para cualquier aclaración.';
   const textWidth = doc.getTextWidth(agradecimiento);
@@ -401,12 +420,12 @@ const addContactAndSignatures = (doc, margins, startY, quote, contentWidth) => {
     y += 10;
   });
 
-  y += 20;
+  y += 35; // Espacio para las firmas
 
   // Líneas de firma
-  const signatureWidth = 150;
-  const leftSignatureX = margins.left + 50;
-  const rightSignatureX = pageWidth - margins.right - signatureWidth - 50;
+  const signatureWidth = 180;
+  const leftSignatureX = margins.left + 20;
+  const rightSignatureX = pageWidth - margins.right - signatureWidth - 20;
 
   // Líneas
   doc.setLineWidth(0.5);
@@ -414,17 +433,18 @@ const addContactAndSignatures = (doc, margins, startY, quote, contentWidth) => {
   doc.line(rightSignatureX, y, rightSignatureX + signatureWidth, y);
 
   // Textos de firma
-  y += 15;
-  doc.setFontSize(7);
+  y += 12;
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
 
   const firmaVendedor = 'Firma vendedor';
   const vendedorWidth = doc.getTextWidth(firmaVendedor);
   doc.text(firmaVendedor, leftSignatureX + (signatureWidth - vendedorWidth) / 2, y);
 
-  const clienteName = quote.cliente.nombre || 'CLIENTE';
-  const clienteWidth = doc.getTextWidth(clienteName);
-  doc.text(clienteName, rightSignatureX + (signatureWidth - clienteWidth) / 2, y);
+  const clienteName = quote.cliente?.nombre || 'CLIENTE';
+  const truncatedClienteName = clienteName.length > 35 ? clienteName.substring(0, 35) + '...' : clienteName;
+  const clienteWidth = doc.getTextWidth(truncatedClienteName);
+  doc.text(truncatedClienteName, rightSignatureX + (signatureWidth - clienteWidth) / 2, y);
 
   y += 10;
   doc.setFont('helvetica', 'normal');

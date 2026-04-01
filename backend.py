@@ -12,8 +12,38 @@ import uvicorn
 import os
 from dotenv import load_dotenv
 
+# --- Parche de compatibilidad para bcrypt/passlib en Python 3.12+ ---
+import logging
+# Desactivar logs ruidosos de passlib sobre bcrypt
+logging.getLogger("passlib").setLevel(logging.ERROR)
+
+try:
+    import bcrypt
+    # Passlib espera que bcrypt tenga __about__, versiones nuevas no lo tienen
+    if not hasattr(bcrypt, "__about__"):
+        bcrypt.__about__ = type('about', (object,), {'__version__': bcrypt.__version__})
+    
+    # Parche para evitar el error "password cannot be longer than 72 bytes"
+    # que ocurre durante la detección de bugs interna de passlib
+    import passlib.handlers.bcrypt
+    if hasattr(passlib.handlers.bcrypt, "detect_wrap_bug"):
+        passlib.handlers.bcrypt.detect_wrap_bug = lambda *args, **kwargs: False
+except Exception:
+    pass
+# -------------------------------------------------------------------
+
 # Cargar variables de entorno desde .env si existe
 load_dotenv()
+
+# --- Configuración de Desarrollo Local ---
+# Cambia esto a False antes de subir a producción si quieres seguridad máxima en local
+# En producción (VM), esto se ignora si configuras una variable de entorno REAL_PROD=true
+IS_DEV = os.getenv("REAL_PROD", "false").lower() == "false"
+if IS_DEV:
+    print("\n" + "!"*50)
+    print("ALERTA: Corriendo en MODO DESARROLLO (Sin Autenticación)")
+    print("!"*50 + "\n")
+# -----------------------------------------
 
 # --- Configuración de Seguridad ---
 # En una app real, estas variables vendrían de .env
@@ -117,6 +147,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
+    if IS_DEV:
+        return "admin" # Bypass de autenticación en local
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="No se pudo validar las credenciales",
@@ -155,7 +188,7 @@ def init_db():
     
     # Crear usuario por defecto si no existe (admin / admin_guba_2026)
     c.execute("SELECT * FROM usuarios WHERE username = 'admin'")
-    if not c.fetchone():
+    if not c.fetchone() and not IS_DEV:
         hashed_pw = get_password_hash("admin_guba_2026")
         c.execute("INSERT INTO usuarios (username, password) VALUES (?, ?)", ("admin", hashed_pw))
 
@@ -244,7 +277,7 @@ async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequ
     user = c.fetchone()
     conn.close()
     
-    if not user or not verify_password(form_data.password, user[1]):
+    if not IS_DEV and (not user or not verify_password(form_data.password, user[1])):
         # Registrar intento fallido
         attempts, _ = login_attempts.get(client_ip, [0, now])
         login_attempts[client_ip] = [attempts + 1, now]
@@ -258,9 +291,10 @@ async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequ
     # Si el login es exitoso, resetear intentos para esta IP
     login_attempts[client_ip] = [0, now]
     
+    username = user[0] if user else form_data.username
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user[0]}, expires_delta=access_token_expires
+        data={"sub": username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -421,4 +455,4 @@ def save_cotizacion(cotizacion: Cotizacion, current_user: str = Depends(get_curr
     return {"message": "Cotización guardada exitosamente", "folio": cotizacion.folio}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("backend:app", host="0.0.0.0", port=8000, reload=True)

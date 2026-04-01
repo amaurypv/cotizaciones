@@ -9,8 +9,7 @@ import shutil
 
 processes = []
 opened_browser = False
-
-# Prioritize common paths
+te# Prioritize common paths
 extra_paths = [
     "/usr/local/bin", 
     "/usr/bin",

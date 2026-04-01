@@ -75,7 +75,7 @@ const PDFTemplate = forwardRef(({ quote, totals, numeroALetras }, ref) => {
             <th className="border border-black p-2 text-center font-bold">Cantidad</th>
             <th className="border border-black p-2 text-center font-bold">Unidad</th>
             <th className="border border-black p-2 text-center font-bold">Descripción</th>
-            <th className="border border-black p-2 text-center font-bold">Precio</th>
+            <th className="border border-black p-2 text-center font-bold">Precio Unitario</th>
             <th className="border border-black p-2 text-center font-bold">Importe</th>
           </tr>
         </thead>
@@ -85,7 +85,7 @@ const PDFTemplate = forwardRef(({ quote, totals, numeroALetras }, ref) => {
               <td className="border border-black p-2 text-center">{producto.clave || `Q${(index + 1).toString().padStart(3, '0')}`}</td>
               <td className="border border-black p-2 text-center">{producto.cantidad}</td>
               <td className="border border-black p-2 text-center">{producto.unidad}</td>
-              <td className="border border-black p-2">
+              <td className="border border-black p-2 text-center">
                 {producto.descripcion}
                 {producto.presentacion && (
                   <div className="text-gray-600 text-xs">
@@ -124,10 +124,10 @@ const PDFTemplate = forwardRef(({ quote, totals, numeroALetras }, ref) => {
       <div className="mb-3 text-xs">
         <h3 className="font-bold mb-1">CONDICIONES DE VENTA:</h3>
         <div className="leading-none">
-          1.- Precios mas I.V.A<br/>
-          2.- Condiciones de pago: {quote.condiciones?.condicionesPago || '30 dias fecha factura'}<br/>
-          3.- Si le es útil el precio, favor de enviar orden de compra, para surtir su pedido.<br/>
-          4.- Tiempo de entrega: {quote.condiciones?.tiempoEntrega || 'Inmediata'}<br/>
+          1.- Precios mas I.V.A<br />
+          2.- Condiciones de pago: {quote.condiciones?.condicionesPago || '30 dias fecha factura'}<br />
+          3.- Si le es útil el precio, favor de enviar orden de compra, para surtir su pedido.<br />
+          4.- Tiempo de entrega: {quote.condiciones?.tiempoEntrega || 'Inmediata'}<br />
           5.- Validez de la cotización: {quote.condiciones?.validez || '30'} días
         </div>
       </div>

@@ -843,6 +843,13 @@ const QuoteForm = ({ onSave, initialQuote }) => {
         {/* Acciones */}
         <div className="border-t pt-10 flex justify-end space-x-4">
           <button
+            onClick={guardarDatosCliente}
+            className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center space-x-2 shadow-sm transition-all active:scale-95"
+          >
+            <Database className="w-4 h-4" />
+            <span>Guardar Cliente</span>
+          </button>
+          <button
             onClick={handleSave}
             className="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center space-x-2 shadow-sm transition-all active:scale-95"
           >
