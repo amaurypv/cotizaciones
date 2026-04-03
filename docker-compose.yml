@@ -5,8 +5,8 @@ services:
       dockerfile: Dockerfile.backend
     ports:
       - "8000:8000"
-    volumes:
-      - ./cotizaciones.db:/app/cotizaciones.db
+    env_file:
+      - .env
     restart: always
 
   frontend:
