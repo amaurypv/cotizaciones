@@ -26,6 +26,8 @@ jobs:
             # Guardar hash de requirements.txt antes del pull
             PREV_REQ=$(md5sum requirements.txt | cut -d' ' -f1)
 
+            # Guardar cambios locales del servidor (docker-compose, nginx, .env)
+            git stash
             git pull origin main
 
             # Hash de requirements.txt después del pull
