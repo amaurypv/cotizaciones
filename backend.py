@@ -55,8 +55,10 @@ def get_conn():
         dbname=DB_NAME,
         user=DB_USER,
         password=DB_PASSWORD,
-        options="-c search_path=cotizaciones"
     )
+    with conn.cursor() as c:
+        c.execute("SET search_path TO cotizaciones")
+    conn.commit()
     return conn
 
 # --- Modelos Pydantic ---
