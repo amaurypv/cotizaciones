@@ -1,0 +1,44 @@
+name: Deploy to GCP
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 34.134.67.59
+          username: amauryperezverdejo
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd /home/amauryperezverdejo/cotizaciones
+
+            # Guardar hash de requirements.txt antes del pull
+            PREV_REQ=$(md5sum requirements.txt | cut -d' ' -f1)
+
+            git pull origin main
+
+            # Hash de requirements.txt después del pull
+            NEW_REQ=$(md5sum requirements.txt | cut -d' ' -f1)
+
+            if [ "$PREV_REQ" != "$NEW_REQ" ]; then
+              echo "requirements.txt cambió → rebuild completo"
+              docker compose build backend
+              docker compose up -d backend
+            else
+              echo "Solo backend.py cambió → deploy ligero"
+              docker cp backend.py cotizaciones-backend-1:/app/backend.py
+              docker restart cotizaciones-backend-1
+            fi
+
+            echo "Deploy completado"
