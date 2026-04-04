@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'https://api.cotizacionesguba.work';
+const API_URL = 'https://cotizacionesguba.work/api';
 
 const api = axios.create({
     baseURL: API_URL,

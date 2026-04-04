@@ -1,4 +1,4 @@
-const API_URL = 'https://api.cotizacionesguba.work';
+const API_URL = 'https://cotizacionesguba.work/api';
 
 export const api = {
     // Clientes
