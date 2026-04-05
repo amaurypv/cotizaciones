@@ -112,6 +112,9 @@ class ProductoCatalogo(BaseModel):
     proveedor: Optional[str] = ""
     costo: Optional[float] = 0.0
 
+class EstatusUpdate(BaseModel):
+    estatus: str
+
 # --- Utilidades de Seguridad ---
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -304,8 +307,38 @@ def get_cotizacion(folio: str, current_user: str = Depends(get_current_user)):
             "condicionesPago": cotizacion_dict["condiciones_pago"]
         },
         "terminos": cotizacion_dict["terminos"],
-        "total": cotizacion_dict["total"]
+        "total": cotizacion_dict["total"],
+        "estatus": cotizacion_dict.get("estatus", "Enviada")
     }
+
+@app.delete("/cotizaciones/{folio}")
+def delete_cotizacion(folio: str, current_user: str = Depends(get_current_user)):
+    conn = get_conn()
+    c = conn.cursor()
+    try:
+        c.execute("DELETE FROM cotizacion_items WHERE cotizacion_folio = %s", (folio,))
+        c.execute("DELETE FROM cotizaciones WHERE folio = %s", (folio,))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        raise HTTPException(status_code=500, detail=str(e))
+    conn.close()
+    return {"message": "Cotización eliminada"}
+
+@app.patch("/cotizaciones/{folio}/estatus")
+def update_estatus(folio: str, data: EstatusUpdate, current_user: str = Depends(get_current_user)):
+    conn = get_conn()
+    c = conn.cursor()
+    try:
+        c.execute("UPDATE cotizaciones SET estatus = %s WHERE folio = %s", (data.estatus, folio))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        raise HTTPException(status_code=500, detail=str(e))
+    conn.close()
+    return {"message": "Estatus actualizado"}
 
 @app.post("/cotizaciones")
 def save_cotizacion(cotizacion: Cotizacion, current_user: str = Depends(get_current_user)):
