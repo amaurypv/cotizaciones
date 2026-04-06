@@ -10,10 +10,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
 
-      - name: Deploy via SSH
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Build frontend
+        run: npm ci && npm run build
+
+      - name: Copy dist to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 34.134.67.59
+          username: amauryperezverdejo
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "dist/*"
+          target: "/tmp/frontend-dist"
+          strip_components: 1
+
+      - name: Deploy backend + activate frontend
         uses: appleboy/ssh-action@v1
         with:
           host: 34.134.67.59
@@ -23,24 +40,25 @@ jobs:
             set -e
             cd /home/amauryperezverdejo/cotizaciones
 
-            # Guardar hash de requirements.txt antes del pull
             PREV_REQ=$(md5sum requirements.txt | cut -d' ' -f1)
-
-            # Guardar cambios locales del servidor (docker-compose, nginx, .env)
             git stash
             git pull origin main
-
-            # Hash de requirements.txt después del pull
             NEW_REQ=$(md5sum requirements.txt | cut -d' ' -f1)
 
+            # Backend
             if [ "$PREV_REQ" != "$NEW_REQ" ]; then
-              echo "requirements.txt cambió → rebuild completo"
+              echo "requirements.txt cambió → rebuild backend"
               docker compose build backend
               docker compose up -d backend
             else
-              echo "Solo backend.py cambió → deploy ligero"
+              echo "Deploy ligero del backend"
               docker cp backend.py cotizaciones-backend-1:/app/backend.py
               docker restart cotizaciones-backend-1
             fi
+
+            # Frontend
+            sudo docker cp /tmp/frontend-dist/. cotizaciones-frontend-1:/usr/share/nginx/html/
+            sudo docker exec cotizaciones-frontend-1 nginx -s reload
+            rm -rf /tmp/frontend-dist
 
             echo "Deploy completado"
