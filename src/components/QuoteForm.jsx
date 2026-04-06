@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Download, Calendar, User, FileText, Save, Database } from 'lucide-react';
+import { Plus, Trash2, Download, Calendar, User, FileText, Save, Database, Send } from 'lucide-react';
 import jsPDF from 'jspdf';
 import PDFTemplate from './PDFTemplate';
 import { numeroALetras } from '../utils/numeroALetras';
@@ -298,6 +298,25 @@ const QuoteForm = ({ onSave, initialQuote }) => {
           rfc: datosCliente.rfc || ""
         }
       }));
+    }
+  };
+
+  const enviarCotizacion = async () => {
+    try {
+      const totals = { subtotal: calcularSubtotal(), iva: calcularIVA(), total: calcularTotal() };
+      const doc = await generateNativePDF(quote, totals, numeroALetras);
+      const folio = quote.folio || generarFolio();
+      doc.save(`cotizacion_${folio}.pdf`);
+
+      const email = quote.cliente.email || '';
+      const subject = encodeURIComponent(`Cotización ${folio} - Química GUBA`);
+      const body = encodeURIComponent(
+        `Estimado/a ${quote.cliente.nombre},\n\nAdjunto encontrará la cotización ${folio} solicitada.\n\nQuedamos a sus órdenes para cualquier aclaración.\n\nAtentamente,\nQuímica GUBA\n(614) 481-91-84\nventas@quimicaguba.com`
+      );
+      window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+      setTimeout(() => alert('📎 El PDF fue descargado. Adjúntalo al correo que se acaba de abrir.'), 500);
+    } catch {
+      alert('Error al preparar el envío');
     }
   };
 
@@ -601,6 +620,21 @@ const QuoteForm = ({ onSave, initialQuote }) => {
                 placeholder="RFC del cliente"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Correo electrónico
+              </label>
+              <input
+                type="email"
+                value={quote.cliente.email}
+                onChange={(e) => setQuote({
+                  ...quote,
+                  cliente: { ...quote.cliente, email: e.target.value }
+                })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                placeholder="correo@empresa.com"
+              />
+            </div>
           </div>
         </div>
 
@@ -869,6 +903,13 @@ const QuoteForm = ({ onSave, initialQuote }) => {
           >
             <Download className="w-4 h-4" />
             <span>PDF Liviano</span>
+          </button>
+          <button
+            onClick={enviarCotizacion}
+            className="px-6 py-2 bg-blue-700 text-white rounded-md hover:bg-blue-800 flex items-center space-x-2 shadow-sm transition-all active:scale-95"
+          >
+            <Send className="w-4 h-4" />
+            <span>Enviar Cotización</span>
           </button>
         </div>
       </div>
