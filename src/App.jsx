@@ -19,6 +19,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [quoteToEdit, setQuoteToEdit] = useState(null);
+  const [previewMode, setPreviewMode] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -59,12 +60,13 @@ function App() {
     setHistorialCotizaciones(prev => [nueva, ...prev]);
   };
 
-  const loadQuote = async (folio, asDuplicate = false) => {
+  const loadQuote = async (folio, asDuplicate = false, startPreview = false) => {
     try {
       const response = await apiClient.get(`/cotizaciones/${folio}`);
       const data = response.data;
       if (asDuplicate) data.folio = '';
       setQuoteToEdit(data);
+      setPreviewMode(startPreview);
       setCurrentView('form');
       setSidebarOpen(false);
     } catch {
@@ -79,6 +81,7 @@ function App() {
 
   const handleSetView = (view) => {
     if (view === 'form' && currentView === 'form') setQuoteToEdit(null);
+    setPreviewMode(false);
     setCurrentView(view);
     setSidebarOpen(false);
   };
@@ -184,6 +187,8 @@ function App() {
                 <QuoteForm
                   onSave={(nueva) => { addCotizacion(nueva); }}
                   initialQuote={quoteToEdit}
+                  initialShowPreview={previewMode}
+                  onExitPreview={() => { setPreviewMode(false); setCurrentView('management'); }}
                 />
               )}
               {currentView === 'management' && (

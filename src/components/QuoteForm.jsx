@@ -7,7 +7,7 @@ import { generateNativePDF } from '../utils/pdfGenerator';
 import { getClientsDB, saveClientData, getClientData, getClientNames } from '../utils/clientsDB';
 import apiClient from '../utils/apiClient';
 
-const QuoteForm = ({ onSave, initialQuote }) => {
+const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPreview }) => {
   const printRef = useRef();
 
   const [quote, setQuote] = useState({
@@ -99,6 +99,10 @@ const QuoteForm = ({ onSave, initialQuote }) => {
       });
     }
   }, [initialQuote]);
+
+  useEffect(() => {
+    if (initialShowPreview) setShowPreview(true);
+  }, [initialShowPreview]);
 
   const unidades = ['KILOGRAMO', 'LITRO', 'PIEZA', 'GALON USA', 'TONELADA', 'METRO CUBICO'];
 
@@ -416,10 +420,10 @@ const QuoteForm = ({ onSave, initialQuote }) => {
       <div className="max-w-4xl mx-auto">
         <div className="mb-6 flex justify-between items-center">
           <button
-            onClick={() => setShowPreview(false)}
+            onClick={() => initialShowPreview && onExitPreview ? onExitPreview() : setShowPreview(false)}
             className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
           >
-            ← Regresar al Formulario
+            {initialShowPreview && onExitPreview ? '← Volver al Historial' : '← Regresar al Formulario'}
           </button>
           <button
             onClick={descargarPDF}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, FileDown, Database, Search, Edit, Copy, Send, Mail } from 'lucide-react';
+import { Trash2, FileDown, Database, Search, Edit, Copy, Send, Mail, Eye } from 'lucide-react';
 import apiClient from '../utils/apiClient';
 import { generateNativePDF } from '../utils/pdfGenerator';
 import { numeroALetras } from '../utils/numeroALetras';
@@ -20,6 +20,7 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
     const [fechaHasta, setFechaHasta] = useState('');
     const [filtroCliente, setFiltroCliente] = useState('');
     const [filtroEstatus, setFiltroEstatus] = useState('');
+    const [filtroProducto, setFiltroProducto] = useState('');
     const [baseProductos, setBaseProductos] = useState([]);
     const [baseClientes, setBaseClientes] = useState([]);
     const [loadingCatalogs, setLoadingCatalogs] = useState(false);
@@ -45,7 +46,8 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
         const matchEstatus = !filtroEstatus || (cot.estatus || 'Enviada') === filtroEstatus;
         const matchDesde = !fechaDesde || cot.fecha >= fechaDesde;
         const matchHasta = !fechaHasta || cot.fecha <= fechaHasta;
-        return matchSearch && matchCliente && matchEstatus && matchDesde && matchHasta;
+        const matchProducto = !filtroProducto || (cot.productos || '').toLowerCase().includes(filtroProducto.toLowerCase());
+        return matchSearch && matchCliente && matchEstatus && matchDesde && matchHasta && matchProducto;
     });
 
     const totalAcumulado = filteredHistorial.reduce((s, c) => s + (c.total || 0), 0);
@@ -199,18 +201,30 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                         </div>
 
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                            <select
-                                value={filtroCliente}
-                                onChange={e => setFiltroCliente(e.target.value)}
-                                className="py-2 px-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-purple-500 outline-none w-full sm:w-72"
-                            >
-                                <option value="">Todos los clientes</option>
-                                {clientesUnicos.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
+                            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                                <select
+                                    value={filtroCliente}
+                                    onChange={e => setFiltroCliente(e.target.value)}
+                                    className="py-2 px-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-purple-500 outline-none w-full sm:w-56"
+                                >
+                                    <option value="">Todos los clientes</option>
+                                    {clientesUnicos.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Filtrar por producto..."
+                                        value={filtroProducto}
+                                        onChange={e => setFiltroProducto(e.target.value)}
+                                        className="w-full sm:w-56 pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 outline-none text-sm"
+                                    />
+                                </div>
+                            </div>
                             <div className="flex gap-2">
-                                {(searchTerm || fechaDesde || fechaHasta || filtroCliente || filtroEstatus) && (
+                                {(searchTerm || fechaDesde || fechaHasta || filtroCliente || filtroEstatus || filtroProducto) && (
                                     <button
-                                        onClick={() => { setSearchTerm(''); setFechaDesde(''); setFechaHasta(''); setFiltroCliente(''); setFiltroEstatus(''); }}
+                                        onClick={() => { setSearchTerm(''); setFechaDesde(''); setFechaHasta(''); setFiltroCliente(''); setFiltroEstatus(''); setFiltroProducto(''); }}
                                         className="px-3 py-2 text-sm text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
                                     >
                                         Limpiar filtros
@@ -286,6 +300,13 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center justify-center gap-1">
+                                                        <button
+                                                            onClick={() => onLoadQuote(cot.folio, false, true)}
+                                                            className="p-1.5 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg"
+                                                            title="Ver cotización"
+                                                        >
+                                                            <Eye className="w-4 h-4" />
+                                                        </button>
                                                         <button
                                                             onClick={() => onLoadQuote(cot.folio, false)}
                                                             className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
