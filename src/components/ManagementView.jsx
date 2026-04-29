@@ -50,20 +50,8 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
         return matchSearch && matchCliente && matchEstatus && matchDesde && matchHasta && matchProducto;
     });
 
-    const totalAcumulado = filteredHistorial.reduce((s, c) => s + (c.total || 0), 0);
-    const totalCostoAcumulado = filteredHistorial.reduce((s, c) => s + (c.total_costo || 0), 0);
-
     const today = new Date().toISOString().split('T')[0];
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-
-    const handleEstatusChange = async (folio, nuevoEstatus) => {
-        try {
-            await apiClient.patch(`/cotizaciones/${folio}/estatus`, { estatus: nuevoEstatus });
-            setHistorial(prev => prev.map(c => c.folio === folio ? { ...c, estatus: nuevoEstatus } : c));
-        } catch {
-            alert('Error al actualizar el estatus');
-        }
-    };
 
     const guardarEmailCliente = async (cliente) => {
         try {
@@ -248,9 +236,6 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                         <th className="px-4 py-3 text-left">Cliente</th>
                                         <th className="px-4 py-3 text-left">Folio</th>
                                         <th className="px-4 py-3 text-left">Productos</th>
-                                        <th className="px-4 py-3 text-center">Estatus</th>
-                                        <th className="px-4 py-3 text-right">Costo (Int)</th>
-                                        <th className="px-4 py-3 text-right">Total</th>
                                         <th className="px-4 py-3 text-center">Acciones</th>
                                     </tr>
                                 </thead>
@@ -258,7 +243,6 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                     {filteredHistorial.length > 0 ? filteredHistorial.map((cot, i) => {
                                         const isToday = cot.fecha === today;
                                         const isYesterday = cot.fecha === yesterday;
-                                        const estatus = cot.estatus || 'Enviada';
                                         return (
                                             <tr key={i} className={`transition-colors ${
                                                 isToday
@@ -282,21 +266,6 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                                 </td>
                                                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400 truncate max-w-xs" title={cot.productos}>
                                                     {cot.productos}
-                                                </td>
-                                                <td className="px-4 py-3 text-center">
-                                                    <select
-                                                        value={estatus}
-                                                        onChange={e => handleEstatusChange(cot.folio, e.target.value)}
-                                                        className={`text-xs font-semibold rounded-full px-2 py-1 border-0 cursor-pointer outline-none ${ESTATUS_STYLES[estatus]}`}
-                                                    >
-                                                        {ESTATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                                                    </select>
-                                                </td>
-                                                <td className="px-4 py-3 text-right font-medium text-gray-500 dark:text-gray-400">
-                                                    ${(cot.total_costo || 0).toFixed(2)}
-                                                </td>
-                                                <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-gray-100">
-                                                    ${cot.total.toFixed(2)}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center justify-center gap-1">
@@ -341,7 +310,7 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                         );
                                     }) : (
                                         <tr>
-                                            <td colSpan="8" className="px-4 py-12 text-center text-gray-400 dark:text-gray-500">
+                                            <td colSpan="5" className="px-4 py-12 text-center text-gray-400 dark:text-gray-500">
                                                 No se encontraron cotizaciones con los filtros seleccionados.
                                             </td>
                                         </tr>
@@ -353,13 +322,6 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                         <tr className="bg-gray-50 dark:bg-gray-700/50 border-t-2 border-gray-200 dark:border-gray-600 font-bold">
                                             <td colSpan="4" className="px-4 py-3 text-gray-600 dark:text-gray-300 text-sm">
                                                 Total ({filteredHistorial.length} cotizaciones)
-                                            </td>
-                                            <td />
-                                            <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-300">
-                                                ${totalCostoAcumulado.toFixed(2)}
-                                            </td>
-                                            <td className="px-4 py-3 text-right text-blue-900 dark:text-blue-300 text-base">
-                                                ${totalAcumulado.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                                             </td>
                                             <td />
                                         </tr>
