@@ -104,7 +104,7 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
     if (initialShowPreview) setShowPreview(true);
   }, [initialShowPreview]);
 
-  const unidades = ['KILOGRAMO', 'LITRO', 'PIEZA', 'GALON USA', 'TONELADA', 'METRO CUBICO'];
+  const unidades = ['KILOGRAMO', 'LITRO', 'MILILITRO', 'PIEZA', 'GALON USA', 'TONELADA', 'METRO CUBICO'];
 
   const calcularImporte = (cantidad, precio) => {
     const cant = parseFloat(cantidad) || 0;

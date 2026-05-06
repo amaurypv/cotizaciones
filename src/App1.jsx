@@ -114,7 +114,8 @@ function App() {
     { codigo: 'MTR', nombre: 'METRO' },
     { codigo: 'M2', nombre: 'METRO CUADRADO' },
     { codigo: 'GLI', nombre: 'GALON USA' },
-    { codigo: 'CJA', nombre: 'CAJA' }
+    { codigo: 'CJA', nombre: 'CAJA' },
+    { codigo: 'MLT', nombre: 'MILILITRO' }
   ];
 
   // Funciones de cálculo
