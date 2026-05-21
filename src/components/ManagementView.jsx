@@ -15,12 +15,21 @@ const ESTATUS_STYLES = {
 
 const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
     const [seccionActiva, setSeccionActiva] = useState('historial');
-    const [searchTerm, setSearchTerm] = useState('');
-    const [fechaDesde, setFechaDesde] = useState('');
-    const [fechaHasta, setFechaHasta] = useState('');
-    const [filtroCliente, setFiltroCliente] = useState('');
-    const [filtroEstatus, setFiltroEstatus] = useState('');
-    const [filtroProducto, setFiltroProducto] = useState('');
+    const [searchTerm, setSearchTerm] = useState(() => sessionStorage.getItem('searchTerm') || '');
+    const [fechaDesde, setFechaDesde] = useState(() => sessionStorage.getItem('fechaDesde') || '');
+    const [fechaHasta, setFechaHasta] = useState(() => sessionStorage.getItem('fechaHasta') || '');
+    const [filtroCliente, setFiltroCliente] = useState(() => sessionStorage.getItem('filtroCliente') || '');
+    const [filtroEstatus, setFiltroEstatus] = useState(() => sessionStorage.getItem('filtroEstatus') || '');
+    const [filtroProducto, setFiltroProducto] = useState(() => sessionStorage.getItem('filtroProducto') || '');
+
+    useEffect(() => {
+        sessionStorage.setItem('searchTerm', searchTerm);
+        sessionStorage.setItem('fechaDesde', fechaDesde);
+        sessionStorage.setItem('fechaHasta', fechaHasta);
+        sessionStorage.setItem('filtroCliente', filtroCliente);
+        sessionStorage.setItem('filtroEstatus', filtroEstatus);
+        sessionStorage.setItem('filtroProducto', filtroProducto);
+    }, [searchTerm, fechaDesde, fechaHasta, filtroCliente, filtroEstatus, filtroProducto]);
     const [baseProductos, setBaseProductos] = useState([]);
     const [baseClientes, setBaseClientes] = useState([]);
     const [loadingCatalogs, setLoadingCatalogs] = useState(false);
