@@ -304,7 +304,9 @@ def get_cotizacion(folio: str, current_user: str = Depends(get_current_user)):
         "condiciones": {
             "validez": cotizacion_dict["validez"],
             "tiempoEntrega": cotizacion_dict["tiempo_entrega"],
-            "condicionesPago": cotizacion_dict["condiciones_pago"]
+            "condicionesPago": cotizacion_dict["condiciones_pago"],
+            "lugarEntrega": cotizacion_dict.get("lugar_entrega") or "",
+            "garantia": cotizacion_dict.get("garantia") or ""
         },
         "terminos": cotizacion_dict["terminos"],
         "total": cotizacion_dict["total"],
@@ -362,8 +364,8 @@ def save_cotizacion(cotizacion: Cotizacion, current_user: str = Depends(get_curr
         )
         created_at = datetime.now().isoformat()
         c.execute(
-            '''INSERT INTO cotizaciones (folio, fecha, cliente_nombre, total, terminos, validez, tiempo_entrega, condiciones_pago, created_at)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            '''INSERT INTO cotizaciones (folio, fecha, cliente_nombre, total, terminos, validez, tiempo_entrega, condiciones_pago, lugar_entrega, garantia, created_at)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                ON CONFLICT (folio) DO UPDATE SET
                  fecha = EXCLUDED.fecha,
                  cliente_nombre = EXCLUDED.cliente_nombre,
@@ -372,12 +374,16 @@ def save_cotizacion(cotizacion: Cotizacion, current_user: str = Depends(get_curr
                  validez = EXCLUDED.validez,
                  tiempo_entrega = EXCLUDED.tiempo_entrega,
                  condiciones_pago = EXCLUDED.condiciones_pago,
+                 lugar_entrega = EXCLUDED.lugar_entrega,
+                 garantia = EXCLUDED.garantia,
                  created_at = EXCLUDED.created_at''',
             (cotizacion.folio, cotizacion.fecha, cotizacion.cliente.nombre,
              cotizacion.total, cotizacion.terminos,
              cotizacion.condiciones["validez"],
              cotizacion.condiciones["tiempoEntrega"],
              cotizacion.condiciones["condicionesPago"],
+             cotizacion.condiciones.get("lugarEntrega", ""),
+             cotizacion.condiciones.get("garantia", ""),
              created_at)
         )
         c.execute("DELETE FROM cotizacion_items WHERE cotizacion_folio = %s", (cotizacion.folio,))

@@ -124,11 +124,17 @@ const PDFTemplate = forwardRef(({ quote, totals, numeroALetras }, ref) => {
       <div className="mb-3 text-xs">
         <h3 className="font-bold mb-1">CONDICIONES DE VENTA:</h3>
         <div className="leading-none">
-          1.- Precios mas I.V.A<br />
-          2.- Condiciones de pago: {quote.condiciones?.condicionesPago || '30 dias fecha factura'}<br />
-          3.- Si le es útil el precio, favor de enviar orden de compra, para surtir su pedido.<br />
-          4.- Tiempo de entrega: {quote.condiciones?.tiempoEntrega || 'Inmediata'}<br />
-          5.- Validez de la cotización: {quote.condiciones?.validez || '30'} días
+          {[
+            'Precios mas I.V.A',
+            `Condiciones de pago: ${quote.condiciones?.condicionesPago || '30 dias fecha factura'}`,
+            'Si le es útil el precio, favor de enviar orden de compra, para surtir su pedido.',
+            `Tiempo de entrega: ${quote.condiciones?.tiempoEntrega || 'Inmediata'}`,
+            `Validez de la cotización: ${quote.condiciones?.validez || '30'} días`,
+            ...(quote.condiciones?.lugarEntrega ? [`Lugar de entrega: ${quote.condiciones.lugarEntrega}`] : []),
+            ...(quote.condiciones?.garantia ? [`Garantía: ${quote.condiciones.garantia}`] : [])
+          ].map((linea, i) => (
+            <React.Fragment key={i}>{i + 1}.- {linea}<br /></React.Fragment>
+          ))}
         </div>
       </div>
 

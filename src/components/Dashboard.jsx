@@ -1,5 +1,6 @@
 import React from 'react';
-import { FileText, TrendingUp, Users, CheckCircle, Clock, XCircle, Send } from 'lucide-react';
+import { FileText, TrendingUp, Users, CheckCircle, Clock, XCircle, Send, AlertTriangle } from 'lucide-react';
+import { getVigencia } from '../utils/vencimiento';
 
 const ESTATUS_CONFIG = {
     'Enviada':     { color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', icon: Send },
@@ -30,9 +31,30 @@ const Dashboard = ({ historial }) => {
 
     const recientes = historial.slice(0, 5);
 
+    let numVencidas = 0, numPorVencer = 0;
+    historial.forEach(c => {
+        const { estado } = getVigencia(c.fecha, c.validez);
+        if (estado === 'vencida') numVencidas++;
+        else if (estado === 'porVencer') numPorVencer++;
+    });
+
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Dashboard</h2>
+
+            {/* Aviso de vencimientos */}
+            {(numVencidas > 0 || numPorVencer > 0) && (
+                <div className="flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/20 p-4">
+                    <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="text-sm text-amber-800 dark:text-amber-200">
+                        <span className="font-semibold">Cotizaciones que requieren atención: </span>
+                        {numVencidas > 0 && <span>{numVencidas} vencida{numVencidas === 1 ? '' : 's'}</span>}
+                        {numVencidas > 0 && numPorVencer > 0 && <span> · </span>}
+                        {numPorVencer > 0 && <span>{numPorVencer} por vencer</span>}
+                        <span className="text-amber-700 dark:text-amber-300"> — revísalas en <strong>Historial / BD</strong> para renovarlas y reenviarlas.</span>
+                    </div>
+                </div>
+            )}
 
             {/* Tarjetas de resumen */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

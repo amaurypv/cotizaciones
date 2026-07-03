@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, FileDown, Database, Search, Edit, Copy, Send, Mail, Eye } from 'lucide-react';
+import { Trash2, FileDown, Database, Search, Edit, Copy, Send, Mail, Eye, RefreshCw } from 'lucide-react';
 import apiClient from '../utils/apiClient';
 import { generateNativePDF } from '../utils/pdfGenerator';
 import { numeroALetras } from '../utils/numeroALetras';
+import { getVigencia, VIGENCIA_META, textoDiasRestantes } from '../utils/vencimiento';
 
 const ESTATUS_OPTIONS = ['Enviada', 'En revisión', 'Aprobada', 'Rechazada'];
 
@@ -21,6 +22,7 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
     const [filtroCliente, setFiltroCliente] = useState(() => sessionStorage.getItem('filtroCliente') || '');
     const [filtroEstatus, setFiltroEstatus] = useState(() => sessionStorage.getItem('filtroEstatus') || '');
     const [filtroProducto, setFiltroProducto] = useState(() => sessionStorage.getItem('filtroProducto') || '');
+    const [filtroVigencia, setFiltroVigencia] = useState(() => sessionStorage.getItem('filtroVigencia') || '');
 
     useEffect(() => {
         sessionStorage.setItem('searchTerm', searchTerm);
@@ -29,7 +31,8 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
         sessionStorage.setItem('filtroCliente', filtroCliente);
         sessionStorage.setItem('filtroEstatus', filtroEstatus);
         sessionStorage.setItem('filtroProducto', filtroProducto);
-    }, [searchTerm, fechaDesde, fechaHasta, filtroCliente, filtroEstatus, filtroProducto]);
+        sessionStorage.setItem('filtroVigencia', filtroVigencia);
+    }, [searchTerm, fechaDesde, fechaHasta, filtroCliente, filtroEstatus, filtroProducto, filtroVigencia]);
     const [baseProductos, setBaseProductos] = useState([]);
     const [baseClientes, setBaseClientes] = useState([]);
     const [loadingCatalogs, setLoadingCatalogs] = useState(false);
@@ -56,7 +59,8 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
         const matchDesde = !fechaDesde || cot.fecha >= fechaDesde;
         const matchHasta = !fechaHasta || cot.fecha <= fechaHasta;
         const matchProducto = !filtroProducto || (cot.productos || '').toLowerCase().includes(filtroProducto.toLowerCase());
-        return matchSearch && matchCliente && matchEstatus && matchDesde && matchHasta && matchProducto;
+        const matchVigencia = !filtroVigencia || getVigencia(cot.fecha, cot.validez).estado === filtroVigencia;
+        return matchSearch && matchCliente && matchEstatus && matchDesde && matchHasta && matchProducto && matchVigencia;
     });
 
     const today = new Date().toISOString().split('T')[0];
@@ -217,11 +221,21 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                         className="w-full sm:w-56 pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 outline-none text-sm"
                                     />
                                 </div>
+                                <select
+                                    value={filtroVigencia}
+                                    onChange={e => setFiltroVigencia(e.target.value)}
+                                    className="py-2 px-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-purple-500 outline-none w-full sm:w-44"
+                                >
+                                    <option value="">Toda vigencia</option>
+                                    <option value="vigente">🟢 Vigentes</option>
+                                    <option value="porVencer">🟡 Por vencer</option>
+                                    <option value="vencida">🔴 Vencidas</option>
+                                </select>
                             </div>
                             <div className="flex gap-2">
-                                {(searchTerm || fechaDesde || fechaHasta || filtroCliente || filtroEstatus || filtroProducto) && (
+                                {(searchTerm || fechaDesde || fechaHasta || filtroCliente || filtroEstatus || filtroProducto || filtroVigencia) && (
                                     <button
-                                        onClick={() => { setSearchTerm(''); setFechaDesde(''); setFechaHasta(''); setFiltroCliente(''); setFiltroEstatus(''); setFiltroProducto(''); }}
+                                        onClick={() => { setSearchTerm(''); setFechaDesde(''); setFechaHasta(''); setFiltroCliente(''); setFiltroEstatus(''); setFiltroProducto(''); setFiltroVigencia(''); }}
                                         className="px-3 py-2 text-sm text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
                                     >
                                         Limpiar filtros
@@ -245,6 +259,7 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                         <th className="px-4 py-3 text-left">Cliente</th>
                                         <th className="px-4 py-3 text-left">Folio</th>
                                         <th className="px-4 py-3 text-left">Productos</th>
+                                        <th className="px-4 py-3 text-left">Vigencia</th>
                                         <th className="px-4 py-3 text-center">Acciones</th>
                                     </tr>
                                 </thead>
@@ -252,6 +267,9 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                     {filteredHistorial.length > 0 ? filteredHistorial.map((cot, i) => {
                                         const isToday = cot.fecha === today;
                                         const isYesterday = cot.fecha === yesterday;
+                                        const vigencia = getVigencia(cot.fecha, cot.validez);
+                                        const vigMeta = VIGENCIA_META[vigencia.estado];
+                                        const requiereRenovar = vigencia.estado === 'vencida' || vigencia.estado === 'porVencer';
                                         return (
                                             <tr key={i} className={`transition-colors ${
                                                 isToday
@@ -276,6 +294,18 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400 truncate max-w-xs" title={cot.productos}>
                                                     {cot.productos}
                                                 </td>
+                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <span className={`inline-flex items-center w-fit px-2 py-0.5 rounded text-xs font-semibold ${vigMeta.badge}`}>
+                                                            {vigMeta.label}
+                                                        </span>
+                                                        {vigencia.diasRestantes !== null && (
+                                                            <span className={`text-xs ${vigencia.estado === 'vencida' ? 'text-red-500 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'}`}>
+                                                                {textoDiasRestantes(vigencia.diasRestantes)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center justify-center gap-1">
                                                         <button
@@ -285,6 +315,15 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                                         >
                                                             <Eye className="w-4 h-4" />
                                                         </button>
+                                                        {requiereRenovar && (
+                                                            <button
+                                                                onClick={() => onLoadQuote(cot.folio, false, false, true)}
+                                                                className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg"
+                                                                title="Renovar (nueva cotización con fecha de hoy)"
+                                                            >
+                                                                <RefreshCw className="w-4 h-4" />
+                                                            </button>
+                                                        )}
                                                         <button
                                                             onClick={() => onLoadQuote(cot.folio, false)}
                                                             className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
@@ -319,7 +358,7 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                         );
                                     }) : (
                                         <tr>
-                                            <td colSpan="5" className="px-4 py-12 text-center text-gray-400 dark:text-gray-500">
+                                            <td colSpan="6" className="px-4 py-12 text-center text-gray-400 dark:text-gray-500">
                                                 No se encontraron cotizaciones con los filtros seleccionados.
                                             </td>
                                         </tr>
@@ -329,7 +368,7 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                 {filteredHistorial.length > 0 && (
                                     <tfoot>
                                         <tr className="bg-gray-50 dark:bg-gray-700/50 border-t-2 border-gray-200 dark:border-gray-600 font-bold">
-                                            <td colSpan="4" className="px-4 py-3 text-gray-600 dark:text-gray-300 text-sm">
+                                            <td colSpan="5" className="px-4 py-3 text-gray-600 dark:text-gray-300 text-sm">
                                                 Total ({filteredHistorial.length} cotizaciones)
                                             </td>
                                             <td />

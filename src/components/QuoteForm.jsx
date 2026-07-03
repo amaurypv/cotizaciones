@@ -7,6 +7,63 @@ import { generateNativePDF } from '../utils/pdfGenerator';
 import { getClientsDB, saveClientData, getClientData, getClientNames } from '../utils/clientsDB';
 import apiClient from '../utils/apiClient';
 
+// Opciones predefinidas para las condiciones de la cotización
+const OPCIONES_CONDICIONES = {
+  validez: ['7', '15', '30', '60', '90'],
+  tiempoEntrega: ['Inmediata', '1-2 días hábiles', '3-5 días hábiles', '1 semana', '2 semanas', '15 días', '30 días', 'A convenir'],
+  condicionesPago: ['Contado', '15 días fecha factura', '30 dias fecha factura', '60 días fecha factura', '50% anticipo, 50% contra entrega', '100% anticipo', 'A convenir'],
+  lugarEntrega: ['Planta del cliente', 'En nuestra planta (LAB)', 'Puesto en obra', 'A convenir'],
+  garantia: ['No aplica', '30 días', '3 meses', '6 meses', '1 año', 'Según fabricante']
+};
+
+const OTRO_VALUE = '__otro__';
+
+// Selector con opciones predefinidas + campo libre "Otro..."
+const SelectConOtro = ({ label, value, options, onChange, suffix, placeholder = 'Especifica...' }) => {
+  const valueEsPreset = options.includes(value);
+  const [modoManual, setModoManual] = useState(!valueEsPreset && value !== '');
+
+  const mostrarTexto = modoManual || (!valueEsPreset && value !== '');
+  const selectValue = mostrarTexto ? OTRO_VALUE : (valueEsPreset ? value : '');
+
+  const handleSelect = (e) => {
+    const v = e.target.value;
+    if (v === OTRO_VALUE) {
+      setModoManual(true);
+      onChange('');
+    } else {
+      setModoManual(false);
+      onChange(v);
+    }
+  };
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+      <select
+        value={selectValue}
+        onChange={handleSelect}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white"
+      >
+        <option value="" disabled>Selecciona una opción...</option>
+        {options.map((o) => (
+          <option key={o} value={o}>{suffix ? `${o} ${suffix}` : o}</option>
+        ))}
+        <option value={OTRO_VALUE}>Otro...</option>
+      </select>
+      {mostrarTexto && (
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+        />
+      )}
+    </div>
+  );
+};
+
 const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPreview }) => {
   const printRef = useRef();
 
@@ -40,7 +97,9 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
     condiciones: {
       validez: '30',
       tiempoEntrega: 'Inmediata',
-      condicionesPago: '30 dias fecha factura'
+      condicionesPago: '30 dias fecha factura',
+      lugarEntrega: '',
+      garantia: ''
     },
     terminos: ''
   });
@@ -90,10 +149,13 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
           ...p,
           id: p.id || Math.random() // Asegurar ID para React
         })),
-        condiciones: initialQuote.condiciones || {
+        condiciones: {
           validez: '30',
           tiempoEntrega: 'Inmediata',
-          condicionesPago: '30 dias fecha factura'
+          condicionesPago: '30 dias fecha factura',
+          lugarEntrega: '',
+          garantia: '',
+          ...(initialQuote.condiciones || {})
         },
         terminos: initialQuote.terminos || ""
       });
@@ -379,7 +441,9 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
       condiciones: {
         validez: quote.condiciones.validez,
         tiempoEntrega: quote.condiciones.tiempoEntrega,
-        condicionesPago: quote.condiciones.condicionesPago
+        condicionesPago: quote.condiciones.condicionesPago,
+        lugarEntrega: quote.condiciones.lugarEntrega || '',
+        garantia: quote.condiciones.garantia || ''
       },
       terminos: quote.terminos || "",
       total: calcularTotal()
@@ -488,20 +552,17 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
               </button>
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Validez (días)
-            </label>
-            <input
-              type="number"
-              value={quote.condiciones.validez}
-              onChange={(e) => setQuote({
-                ...quote,
-                condiciones: { ...quote.condiciones, validez: e.target.value }
-              })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
+          <SelectConOtro
+            label="Validez (días)"
+            value={quote.condiciones.validez}
+            options={OPCIONES_CONDICIONES.validez}
+            suffix="días"
+            placeholder="Ej: 45"
+            onChange={(v) => setQuote({
+              ...quote,
+              condiciones: { ...quote.condiciones, validez: v }
+            })}
+          />
         </div>
 
         {/* Información del cliente */}
@@ -815,34 +876,42 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
         <div className="border-t pt-10">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Condiciones</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tiempo de Entrega
-              </label>
-              <input
-                type="text"
-                value={quote.condiciones.tiempoEntrega}
-                onChange={(e) => setQuote({
-                  ...quote,
-                  condiciones: { ...quote.condiciones, tiempoEntrega: e.target.value }
-                })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Condiciones de Pago
-              </label>
-              <input
-                type="text"
-                value={quote.condiciones.condicionesPago}
-                onChange={(e) => setQuote({
-                  ...quote,
-                  condiciones: { ...quote.condiciones, condicionesPago: e.target.value }
-                })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
+            <SelectConOtro
+              label="Tiempo de Entrega"
+              value={quote.condiciones.tiempoEntrega}
+              options={OPCIONES_CONDICIONES.tiempoEntrega}
+              onChange={(v) => setQuote({
+                ...quote,
+                condiciones: { ...quote.condiciones, tiempoEntrega: v }
+              })}
+            />
+            <SelectConOtro
+              label="Condiciones de Pago"
+              value={quote.condiciones.condicionesPago}
+              options={OPCIONES_CONDICIONES.condicionesPago}
+              onChange={(v) => setQuote({
+                ...quote,
+                condiciones: { ...quote.condiciones, condicionesPago: v }
+              })}
+            />
+            <SelectConOtro
+              label="Lugar de Entrega"
+              value={quote.condiciones.lugarEntrega}
+              options={OPCIONES_CONDICIONES.lugarEntrega}
+              onChange={(v) => setQuote({
+                ...quote,
+                condiciones: { ...quote.condiciones, lugarEntrega: v }
+              })}
+            />
+            <SelectConOtro
+              label="Garantía"
+              value={quote.condiciones.garantia}
+              options={OPCIONES_CONDICIONES.garantia}
+              onChange={(v) => setQuote({
+                ...quote,
+                condiciones: { ...quote.condiciones, garantia: v }
+              })}
+            />
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Términos y Observaciones

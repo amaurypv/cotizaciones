@@ -347,12 +347,14 @@ const addSalesConditions = (doc, margins, startY, quote, contentWidth) => {
 
   doc.setFont('helvetica', 'normal');
   const conditions = [
-    '1.- Precios mas I.V.A',
-    `2.- Condiciones de pago: ${quote.condiciones?.condicionesPago || '30 dias fecha factura'}`,
-    '3.- Si le es útil el precio, favor de enviar orden de compra, para surtir su pedido.',
-    `4.- Tiempo de entrega: ${quote.condiciones?.tiempoEntrega || 'Inmediata'}`,
-    `5.- Validez de la cotización: ${quote.condiciones?.validez || '30'} días`
-  ];
+    'Precios mas I.V.A',
+    `Condiciones de pago: ${quote.condiciones?.condicionesPago || '30 dias fecha factura'}`,
+    'Si le es útil el precio, favor de enviar orden de compra, para surtir su pedido.',
+    `Tiempo de entrega: ${quote.condiciones?.tiempoEntrega || 'Inmediata'}`,
+    `Validez de la cotización: ${quote.condiciones?.validez || '30'} días`,
+    ...(quote.condiciones?.lugarEntrega ? [`Lugar de entrega: ${quote.condiciones.lugarEntrega}`] : []),
+    ...(quote.condiciones?.garantia ? [`Garantía: ${quote.condiciones.garantia}`] : [])
+  ].map((linea, i) => `${i + 1}.- ${linea}`);
 
   doc.setLineHeightFactor(1.1);
   conditions.forEach(condition => {

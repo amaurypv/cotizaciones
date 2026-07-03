@@ -41,6 +41,7 @@ function App() {
         id: cot.id,
         folio: cot.folio,
         fecha: cot.fecha,
+        validez: cot.validez,
         cliente: cot.cliente_nombre,
         productos: cot.productos_resumen || 'Sin productos',
         total: cot.total,
@@ -60,11 +61,13 @@ function App() {
     setHistorialCotizaciones(prev => [nueva, ...prev]);
   };
 
-  const loadQuote = async (folio, asDuplicate = false, startPreview = false) => {
+  const loadQuote = async (folio, asDuplicate = false, startPreview = false, renew = false) => {
     try {
       const response = await apiClient.get(`/cotizaciones/${folio}`);
       const data = response.data;
-      if (asDuplicate) data.folio = '';
+      if (asDuplicate || renew) data.folio = '';
+      // Al renovar, la cotización arranca con fecha de hoy para recalcular su vigencia.
+      if (renew) data.fecha = new Date().toISOString().split('T')[0];
       setQuoteToEdit(data);
       setPreviewMode(startPreview);
       setCurrentView('form');
