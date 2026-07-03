@@ -457,9 +457,12 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
         id: Date.now(),
         folio: folio,
         fecha: quote.fecha,
+        validez: quote.condiciones.validez,
         cliente: quote.cliente.nombre,
         productos: quote.productos.map(p => p.descripcion).filter(d => d).join(', '),
         total: calcularTotal(),
+        estatus: 'Enviada',
+        renovadaPor: null,
         fechaCreacion: new Date().toISOString()
       };
 
