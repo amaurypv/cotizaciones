@@ -276,9 +276,9 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                         const isToday = cot.fecha === today;
                                         const isYesterday = cot.fecha === yesterday;
                                         const vigencia = getVigencia(cot.fecha, cot.validez);
-                                        const yaActualizada = vigencia.estado === 'vencida' && !!cot.renovadaPor;
-                                        const vigMeta = yaActualizada ? VIGENCIA_META.vencidaActualizada : VIGENCIA_META[vigencia.estado];
-                                        const requiereRenovar = (vigencia.estado === 'vencida' && !yaActualizada) || vigencia.estado === 'porVencer';
+                                        const yaActualizada = !!cot.renovadaPor;
+                                        const vigMeta = yaActualizada && vigencia.estado === 'vencida' ? VIGENCIA_META.vencidaActualizada : VIGENCIA_META[vigencia.estado];
+                                        const requiereRenovar = !yaActualizada && (vigencia.estado === 'vencida' || vigencia.estado === 'porVencer');
                                         return (
                                             <tr key={i} className={`transition-colors ${
                                                 isToday
