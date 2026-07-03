@@ -20,6 +20,10 @@ function App() {
   const [error, setError] = useState(null);
   const [quoteToEdit, setQuoteToEdit] = useState(null);
   const [previewMode, setPreviewMode] = useState(false);
+  // Cambiar la key fuerza a React a remontar el formulario con estado limpio
+  const [formKey, setFormKey] = useState(0);
+  // Folio de la cotización vencida que se está renovando (para marcarla al guardar la nueva)
+  const [renewFromFolio, setRenewFromFolio] = useState(null);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -48,6 +52,7 @@ function App() {
         total_costo: cot.total_costo,
         monedas: cot.monedas,
         estatus: cot.estatus || 'Enviada',
+        renovadaPor: cot.renovada_por || null,
         fechaCreacion: cot.created_at,
       })));
     } catch {
@@ -59,6 +64,22 @@ function App() {
 
   const addCotizacion = (nueva) => {
     setHistorialCotizaciones(prev => [nueva, ...prev]);
+    marcarComoRenovada(nueva.folio);
+  };
+
+  // Si la cotización guardada proviene de una renovación, marcar la original como actualizada.
+  const marcarComoRenovada = async (nuevoFolio) => {
+    if (!renewFromFolio || renewFromFolio === nuevoFolio) return;
+    const folioOriginal = renewFromFolio;
+    setRenewFromFolio(null);
+    try {
+      await apiClient.patch(`/cotizaciones/${folioOriginal}/renovada`, { renovada_por: nuevoFolio });
+      setHistorialCotizaciones(prev =>
+        prev.map(c => (c.folio === folioOriginal ? { ...c, renovadaPor: nuevoFolio } : c))
+      );
+    } catch (e) {
+      console.error('No se pudo marcar la cotización original como renovada:', e);
+    }
   };
 
   const loadQuote = async (folio, asDuplicate = false, startPreview = false, renew = false) => {
@@ -68,8 +89,10 @@ function App() {
       if (asDuplicate || renew) data.folio = '';
       // Al renovar, la cotización arranca con fecha de hoy para recalcular su vigencia.
       if (renew) data.fecha = new Date().toISOString().split('T')[0];
+      setRenewFromFolio(renew ? folio : null);
       setQuoteToEdit(data);
       setPreviewMode(startPreview);
+      setFormKey(k => k + 1);
       setCurrentView('form');
       setSidebarOpen(false);
     } catch {
@@ -83,7 +106,12 @@ function App() {
   };
 
   const handleSetView = (view) => {
-    if (view === 'form' && currentView === 'form') setQuoteToEdit(null);
+    // "Nueva Cotización" siempre abre un formulario limpio, sin datos de la anterior.
+    if (view === 'form') {
+      setQuoteToEdit(null);
+      setRenewFromFolio(null);
+      setFormKey(k => k + 1);
+    }
     setPreviewMode(false);
     setCurrentView(view);
     setSidebarOpen(false);
@@ -188,6 +216,7 @@ function App() {
               )}
               {currentView === 'form' && (
                 <QuoteForm
+                  key={formKey}
                   onSave={(nueva) => { addCotizacion(nueva); }}
                   initialQuote={quoteToEdit}
                   initialShowPreview={previewMode}

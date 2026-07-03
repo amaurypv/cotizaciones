@@ -40,6 +40,8 @@ export const VIGENCIA_META = {
     vigente:     { label: 'Vigente',    badge: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
     porVencer:   { label: 'Por vencer', badge: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300' },
     vencida:     { label: 'Vencida',    badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+    // Vencida pero ya se envió una cotización actualizada que la reemplaza
+    vencidaActualizada: { label: 'Vencida · Actualizada', badge: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300' },
     desconocido: { label: 'Sin datos',  badge: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' },
 };
 

@@ -121,7 +121,8 @@ const addCompanyHeader = (doc, margins, startY, quote, logoBase64, contentWidth)
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  const fecha = new Date(quote.fecha).toLocaleDateString('es-MX');
+  // Parsear como fecha local (sin 'T00:00:00' se interpreta como UTC y se recorre un día)
+  const fecha = new Date(String(quote.fecha).split('T')[0] + 'T00:00:00').toLocaleDateString('es-MX');
   const dateText = `Fecha: ${fecha}`;
   const dateWidth = doc.getTextWidth(dateText);
   doc.text(dateText, boxX + boxWidth - dateWidth, boxY + boxHeight + 15);

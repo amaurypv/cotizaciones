@@ -61,6 +61,19 @@ def get_conn():
     conn.commit()
     return conn
 
+def ensure_schema():
+    # Migración idempotente: folio de la cotización que renovó a una vencida
+    conn = get_conn()
+    with conn.cursor() as c:
+        c.execute("ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS renovada_por TEXT")
+    conn.commit()
+    conn.close()
+
+try:
+    ensure_schema()
+except Exception as e:
+    print(f"Advertencia: no se pudo verificar el esquema de la BD: {e}")
+
 # --- Modelos Pydantic ---
 class Token(BaseModel):
     access_token: str
@@ -114,6 +127,9 @@ class ProductoCatalogo(BaseModel):
 
 class EstatusUpdate(BaseModel):
     estatus: str
+
+class RenovadaUpdate(BaseModel):
+    renovada_por: str
 
 # --- Utilidades de Seguridad ---
 def verify_password(plain_password, hashed_password):
@@ -341,6 +357,20 @@ def update_estatus(folio: str, data: EstatusUpdate, current_user: str = Depends(
         raise HTTPException(status_code=500, detail=str(e))
     conn.close()
     return {"message": "Estatus actualizado"}
+
+@app.patch("/cotizaciones/{folio}/renovada")
+def update_renovada(folio: str, data: RenovadaUpdate, current_user: str = Depends(get_current_user)):
+    conn = get_conn()
+    c = conn.cursor()
+    try:
+        c.execute("UPDATE cotizaciones SET renovada_por = %s WHERE folio = %s", (data.renovada_por, folio))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        raise HTTPException(status_code=500, detail=str(e))
+    conn.close()
+    return {"message": "Cotización marcada como renovada"}
 
 @app.post("/cotizaciones")
 def save_cotizacion(cotizacion: Cotizacion, current_user: str = Depends(get_current_user)):

@@ -1,8 +1,11 @@
 import React, { forwardRef } from 'react';
 
 const PDFTemplate = forwardRef(({ quote, totals, numeroALetras }, ref) => {
+  // Parsear como fecha local (sin 'T00:00:00' se interpreta como UTC y se recorre un día)
+  const parseFechaLocal = (fecha) => new Date(String(fecha).split('T')[0] + 'T00:00:00');
+
   const formatFecha = (fecha) => {
-    const date = new Date(fecha);
+    const date = parseFechaLocal(fecha);
     return date.toLocaleDateString('es-MX', {
       day: '2-digit',
       month: '2-digit',
@@ -47,7 +50,7 @@ const PDFTemplate = forwardRef(({ quote, totals, numeroALetras }, ref) => {
               <h2 className="text-sm font-bold">Cotización {quote.folio || 'COT0001-25'}</h2>
             </div>
             <div className="mt-1 text-xs">
-              <p><strong>Fecha:</strong> {new Date(quote.fecha).toLocaleDateString('es-MX')}</p>
+              <p><strong>Fecha:</strong> {parseFechaLocal(quote.fecha).toLocaleDateString('es-MX')}</p>
             </div>
           </div>
         </div>

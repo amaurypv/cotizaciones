@@ -59,7 +59,13 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
         const matchDesde = !fechaDesde || cot.fecha >= fechaDesde;
         const matchHasta = !fechaHasta || cot.fecha <= fechaHasta;
         const matchProducto = !filtroProducto || (cot.productos || '').toLowerCase().includes(filtroProducto.toLowerCase());
-        const matchVigencia = !filtroVigencia || getVigencia(cot.fecha, cot.validez).estado === filtroVigencia;
+        let matchVigencia = true;
+        if (filtroVigencia) {
+            const estado = getVigencia(cot.fecha, cot.validez).estado;
+            if (filtroVigencia === 'vencidaSinActualizar') matchVigencia = estado === 'vencida' && !cot.renovadaPor;
+            else if (filtroVigencia === 'vencidaActualizada') matchVigencia = estado === 'vencida' && !!cot.renovadaPor;
+            else matchVigencia = estado === filtroVigencia;
+        }
         return matchSearch && matchCliente && matchEstatus && matchDesde && matchHasta && matchProducto && matchVigencia;
     });
 
@@ -229,7 +235,9 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                     <option value="">Toda vigencia</option>
                                     <option value="vigente">🟢 Vigentes</option>
                                     <option value="porVencer">🟡 Por vencer</option>
-                                    <option value="vencida">🔴 Vencidas</option>
+                                    <option value="vencida">🔴 Vencidas (todas)</option>
+                                    <option value="vencidaSinActualizar">🔴 Vencidas sin actualizar</option>
+                                    <option value="vencidaActualizada">✅ Vencidas ya actualizadas</option>
                                 </select>
                             </div>
                             <div className="flex gap-2">
@@ -268,8 +276,9 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                         const isToday = cot.fecha === today;
                                         const isYesterday = cot.fecha === yesterday;
                                         const vigencia = getVigencia(cot.fecha, cot.validez);
-                                        const vigMeta = VIGENCIA_META[vigencia.estado];
-                                        const requiereRenovar = vigencia.estado === 'vencida' || vigencia.estado === 'porVencer';
+                                        const yaActualizada = vigencia.estado === 'vencida' && !!cot.renovadaPor;
+                                        const vigMeta = yaActualizada ? VIGENCIA_META.vencidaActualizada : VIGENCIA_META[vigencia.estado];
+                                        const requiereRenovar = (vigencia.estado === 'vencida' && !yaActualizada) || vigencia.estado === 'porVencer';
                                         return (
                                             <tr key={i} className={`transition-colors ${
                                                 isToday
@@ -300,8 +309,13 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                                             {vigMeta.label}
                                                         </span>
                                                         {vigencia.diasRestantes !== null && (
-                                                            <span className={`text-xs ${vigencia.estado === 'vencida' ? 'text-red-500 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'}`}>
+                                                            <span className={`text-xs ${vigencia.estado === 'vencida' && !yaActualizada ? 'text-red-500 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'}`}>
                                                                 {textoDiasRestantes(vigencia.diasRestantes)}
+                                                            </span>
+                                                        )}
+                                                        {yaActualizada && (
+                                                            <span className="text-xs text-teal-600 dark:text-teal-400" title={`Se envió la cotización actualizada ${cot.renovadaPor}`}>
+                                                                ✓ Renovada: {cot.renovadaPor}
                                                             </span>
                                                         )}
                                                     </div>
