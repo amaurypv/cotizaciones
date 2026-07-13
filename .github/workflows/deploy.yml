@@ -1,4 +1,4 @@
-name: Deploy to GCP
+name: Deploy to Oracle VM
 
 on:
   push:
@@ -23,9 +23,9 @@ jobs:
       - name: Copy dist to server
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: 34.134.67.59
-          username: amauryperezverdejo
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: 40.233.13.207
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
           source: "dist/*"
           target: "/tmp/frontend-dist"
           strip_components: 1
@@ -33,12 +33,12 @@ jobs:
       - name: Deploy backend + activate frontend
         uses: appleboy/ssh-action@v1
         with:
-          host: 34.134.67.59
-          username: amauryperezverdejo
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: 40.233.13.207
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
           script: |
             set -e
-            cd /home/amauryperezverdejo/cotizaciones
+            cd /home/ubuntu/cotizaciones
 
             PREV_REQ=$(md5sum requirements.txt | cut -d' ' -f1)
             git stash
@@ -57,8 +57,8 @@ jobs:
             fi
 
             # Frontend
-            sudo docker cp /tmp/frontend-dist/. cotizaciones-frontend-1:/usr/share/nginx/html/
-            sudo docker exec cotizaciones-frontend-1 nginx -s reload
+            docker cp /tmp/frontend-dist/. cotizaciones-frontend-1:/usr/share/nginx/html/
+            docker exec cotizaciones-frontend-1 nginx -s reload
             rm -rf /tmp/frontend-dist
 
             echo "Deploy completado"
