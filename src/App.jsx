@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FilePlus, ClipboardList, Moon, Sun, LogOut, Menu, X, FileText } from 'lucide-react';
+import { LayoutDashboard, FilePlus, ClipboardList, Moon, Sun, LogOut, Menu, X } from 'lucide-react';
 import QuoteForm from './components/QuoteForm';
 import ManagementView from './components/ManagementView';
 import Login from './components/Login';
@@ -138,7 +138,7 @@ function App() {
         {/* Logo */}
         <div className="flex items-center gap-3 px-5 py-5 border-b border-blue-800 dark:border-gray-700">
           <div className="bg-white p-1.5 rounded-lg">
-            <FileText className="w-5 h-5 text-blue-900" />
+            <img src="/logo-guba.png" alt="Química Guba" className="w-8 h-8 object-contain" />
           </div>
           <div>
             <p className="font-bold text-sm leading-tight">QUÍMICA GUBA</p>
