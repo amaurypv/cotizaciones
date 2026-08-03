@@ -28,7 +28,10 @@ ALLOWED_ORIGINS = [
     "https://cotizacionesguba.work",
     "https://www.cotizacionesguba.work",
     "http://localhost:5173",
-    "http://127.0.0.1:5173"
+    "http://127.0.0.1:5173",
+    # Puerto del preview configurado en .claude/launch.json
+    "http://localhost:5174",
+    "http://127.0.0.1:5174"
 ]
 app.add_middleware(
     CORSMiddleware,
@@ -62,10 +65,29 @@ def get_conn():
     return conn
 
 def ensure_schema():
-    # Migración idempotente: folio de la cotización que renovó a una vencida
+    # Migraciones idempotentes
     conn = get_conn()
     with conn.cursor() as c:
+        # Folio de la cotización que renovó a una vencida
         c.execute("ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS renovada_por TEXT")
+        # Seguimiento de venta: qué partidas aceptó el cliente y cómo cerró la cotización.
+        # 'aceptado' es tri-estado a propósito: NULL = sin decidir, distinto de FALSE = rechazada.
+        c.execute("ALTER TABLE cotizacion_items ADD COLUMN IF NOT EXISTS aceptado BOOLEAN")
+        c.execute("ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS fecha_cierre DATE")
+        c.execute("ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS motivo_perdida TEXT")
+        c.execute("ALTER TABLE cotizaciones ADD COLUMN IF NOT EXISTS nota_cierre TEXT")
+        # El vocabulario anterior no podía escribirse desde la UI, pero sí se capturó a mano
+        # en Supabase. 'Aprobada' significaba que se aprobó la cotización completa, así que
+        # se marcan todas sus partidas: si solo se renombrara el estatus, quedarían como
+        # "Ganada · 0 de N partidas" y ensuciarían la conversión por partida.
+        c.execute("""UPDATE cotizacion_items SET aceptado = TRUE
+                     WHERE aceptado IS NULL AND cotizacion_folio IN (
+                         SELECT folio FROM cotizaciones WHERE estatus = 'Aprobada')""")
+        c.execute("""UPDATE cotizacion_items SET aceptado = FALSE
+                     WHERE aceptado IS NULL AND cotizacion_folio IN (
+                         SELECT folio FROM cotizaciones WHERE estatus = 'Rechazada')""")
+        c.execute("UPDATE cotizaciones SET estatus = 'Ganada'  WHERE estatus = 'Aprobada'")
+        c.execute("UPDATE cotizaciones SET estatus = 'Perdida' WHERE estatus = 'Rechazada'")
     conn.commit()
     conn.close()
 
@@ -125,11 +147,38 @@ class ProductoCatalogo(BaseModel):
     proveedor: Optional[str] = ""
     costo: Optional[float] = 0.0
 
-class EstatusUpdate(BaseModel):
-    estatus: str
+class CierreUpdate(BaseModel):
+    accion: str = "cerrar"                 # 'cerrar' | 'reabrir'
+    aceptados: List[int] = []              # ids de cotizacion_items que el cliente aceptó
+    fecha_cierre: Optional[str] = None
+    motivo_perdida: Optional[str] = ""
+    nota_cierre: Optional[str] = ""
+    estatus_abierto: str = "Enviada"       # estado al reabrir
 
 class RenovadaUpdate(BaseModel):
     renovada_por: str
+
+# --- Resultado de venta ---
+ESTATUS_ABIERTOS = ("Enviada", "En negociación")
+
+# Histórico sin resultado: sale de los avisos pero no cuenta como venta perdida.
+ESTATUS_SIN_DATO = "Sin dato"
+
+# La vigencia no está guardada: se deriva de fecha + validez (días). `validez` es TEXT,
+# así que se limpia a dígitos antes de convertir para no reventar con valores raros.
+SQL_VENCIMIENTO = ("(fecha::date + COALESCE("
+                   "NULLIF(regexp_replace(validez, '\\D', '', 'g'), '')::int, 0))")
+
+class ArchivarRequest(BaseModel):
+    dias: int = 90
+
+def derivar_estatus(total_items: int, aceptados: int) -> str:
+    """El resultado de la cotización se deriva de sus partidas, no se captura aparte."""
+    if total_items == 0 or aceptados == 0:
+        return "Perdida"
+    if aceptados >= total_items:
+        return "Ganada"
+    return "Ganada parcial"
 
 # --- Utilidades de Seguridad ---
 def verify_password(plain_password, hashed_password):
@@ -277,6 +326,89 @@ def save_producto_catalogo(producto: ProductoCatalogo, current_user: str = Depen
     conn.close()
     return {"message": "Producto guardado"}
 
+@app.post("/cotizaciones/archivar")
+def archivar_vencidas(data: ArchivarRequest, current_user: str = Depends(get_current_user)):
+    """Marca como 'Sin dato' el histórico vencido hace mucho.
+
+    No se marcan como Perdidas a propósito: muchas sí se vendieron y no hay forma de
+    saberlo, así que contarlas como pérdidas hundiría la conversión con datos falsos.
+    'Sin dato' las saca de los avisos y queda excluido de todo cálculo.
+    """
+    conn = get_conn()
+    c = conn.cursor()
+    try:
+        c.execute(
+            f"""UPDATE cotizaciones SET estatus = %s
+                WHERE estatus = ANY(%s)
+                  AND renovada_por IS NULL
+                  AND {SQL_VENCIMIENTO} < CURRENT_DATE - %s""",
+            (ESTATUS_SIN_DATO, list(ESTATUS_ABIERTOS), data.dias)
+        )
+        archivadas = c.rowcount
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        raise HTTPException(status_code=500, detail=str(e))
+    conn.close()
+    return {"message": "Histórico archivado", "archivadas": archivadas, "dias": data.dias}
+
+@app.get("/reportes/oportunidades")
+def oportunidades(current_user: str = Depends(get_current_user)):
+    """Clientes con cotizaciones vencidas sin cerrar, para re-cotizar.
+
+    Se ordena por cuántas veces les has cotizado: un cliente recurrente con una
+    cotización vencida y sin respuesta es una llamada pendiente, no un dato muerto.
+    """
+    conn = get_conn()
+    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    c.execute(
+        f"""SELECT cliente_nombre,
+                   COUNT(*) FILTER (
+                       WHERE estatus = ANY(%s) AND renovada_por IS NULL
+                         AND {SQL_VENCIMIENTO} < CURRENT_DATE
+                   ) AS vencidas_abiertas,
+                   COUNT(*) AS total_cotizaciones,
+                   MAX(fecha) AS ultima_cotizacion
+            FROM cotizaciones
+            GROUP BY cliente_nombre
+            HAVING COUNT(*) FILTER (
+                       WHERE estatus = ANY(%s) AND renovada_por IS NULL
+                         AND {SQL_VENCIMIENTO} < CURRENT_DATE
+                   ) > 0
+            ORDER BY COUNT(*) DESC, MAX(fecha) DESC""",
+        (list(ESTATUS_ABIERTOS), list(ESTATUS_ABIERTOS))
+    )
+    rows = c.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+@app.get("/reportes/conversion_productos")
+def conversion_productos(current_user: str = Depends(get_current_user)):
+    """Conversión por producto sobre cotizaciones ya cerradas.
+
+    No se puede derivar del historial porque este no trae las partidas. Se excluyen
+    las cotizaciones renovadas: fueron reemplazadas, no rechazadas por el cliente.
+    """
+    conn = get_conn()
+    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    c.execute("""
+        SELECT ci.clave,
+               MAX(ci.descripcion) as descripcion,
+               COUNT(*) as veces_cotizado,
+               COUNT(*) FILTER (WHERE ci.aceptado) as veces_aceptado,
+               SUM(ci.importe) FILTER (WHERE ci.aceptado) as monto_aceptado,
+               SUM(ci.cantidad * ci.costo) FILTER (WHERE ci.aceptado) as costo_aceptado
+        FROM cotizacion_items ci
+        JOIN cotizaciones c ON c.folio = ci.cotizacion_folio
+        WHERE ci.aceptado IS NOT NULL AND c.renovada_por IS NULL
+        GROUP BY ci.clave
+        ORDER BY COUNT(*) DESC, ci.clave
+    """)
+    rows = c.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
 @app.get("/cotizaciones")
 def get_cotizaciones(current_user: str = Depends(get_current_user)):
     conn = get_conn()
@@ -285,7 +417,11 @@ def get_cotizaciones(current_user: str = Depends(get_current_user)):
         SELECT c.*,
                SUM(ci.cantidad * ci.costo) as total_costo,
                STRING_AGG(ci.descripcion, ', ') as productos_resumen,
-               STRING_AGG(DISTINCT ci.moneda, ',') as monedas
+               STRING_AGG(DISTINCT ci.moneda, ',') as monedas,
+               COUNT(ci.id) as items_total,
+               COUNT(*) FILTER (WHERE ci.aceptado) as items_aceptados,
+               SUM(ci.importe) FILTER (WHERE ci.aceptado) as monto_aceptado,
+               SUM(ci.cantidad * ci.costo) FILTER (WHERE ci.aceptado) as costo_aceptado
         FROM cotizaciones c
         LEFT JOIN cotizacion_items ci ON c.folio = ci.cotizacion_folio
         GROUP BY c.id
@@ -304,7 +440,7 @@ def get_cotizacion(folio: str, current_user: str = Depends(get_current_user)):
     if not cotizacion_row:
         conn.close()
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
-    c.execute("SELECT * FROM cotizacion_items WHERE cotizacion_folio = %s", (folio,))
+    c.execute("SELECT * FROM cotizacion_items WHERE cotizacion_folio = %s ORDER BY id", (folio,))
     items_rows = c.fetchall()
     c.execute("SELECT * FROM clientes WHERE nombre = %s", (cotizacion_row["cliente_nombre"],))
     cliente_row = c.fetchone()
@@ -344,19 +480,76 @@ def delete_cotizacion(folio: str, current_user: str = Depends(get_current_user))
     conn.close()
     return {"message": "Cotización eliminada"}
 
-@app.patch("/cotizaciones/{folio}/estatus")
-def update_estatus(folio: str, data: EstatusUpdate, current_user: str = Depends(get_current_user)):
+@app.patch("/cotizaciones/{folio}/cierre")
+def update_cierre(folio: str, data: CierreUpdate, current_user: str = Depends(get_current_user)):
+    """Registra qué partidas aceptó el cliente y deriva el resultado de la cotización."""
     conn = get_conn()
     c = conn.cursor()
     try:
-        c.execute("UPDATE cotizaciones SET estatus = %s WHERE folio = %s", (data.estatus, folio))
+        if data.accion == "reabrir":
+            estatus = data.estatus_abierto if data.estatus_abierto in ESTATUS_ABIERTOS else "Enviada"
+            # Se limpian las marcas para no dejar rastro de un cierre revertido.
+            c.execute("UPDATE cotizacion_items SET aceptado = NULL WHERE cotizacion_folio = %s", (folio,))
+            c.execute(
+                """UPDATE cotizaciones
+                   SET estatus = %s, fecha_cierre = NULL, motivo_perdida = NULL, nota_cierre = NULL
+                   WHERE folio = %s""",
+                (estatus, folio)
+            )
+            # Las partidas siguen existiendo, solo quedan sin decidir.
+            c.execute("SELECT COUNT(*) FROM cotizacion_items WHERE cotizacion_folio = %s", (folio,))
+            total_items = c.fetchone()[0]
+            aceptados = 0
+            monto_aceptado = 0
+            costo_aceptado = 0
+        else:
+            c.execute("SELECT id FROM cotizacion_items WHERE cotizacion_folio = %s", (folio,))
+            ids = [row[0] for row in c.fetchall()]
+            if not ids:
+                conn.rollback()
+                conn.close()
+                raise HTTPException(status_code=404, detail="La cotización no tiene partidas")
+
+            marcados = set(data.aceptados) & set(ids)
+            c.execute(
+                "UPDATE cotizacion_items SET aceptado = (id = ANY(%s)) WHERE cotizacion_folio = %s",
+                (list(marcados), folio)
+            )
+
+            total_items = len(ids)
+            aceptados = len(marcados)
+            estatus = derivar_estatus(total_items, aceptados)
+            fecha_cierre = data.fecha_cierre or datetime.now().strftime("%Y-%m-%d")
+            # El motivo solo aplica cuando quedó algo sin vender.
+            motivo = data.motivo_perdida if aceptados < total_items else None
+            nota = data.nota_cierre or None
+
+            c.execute(
+                """UPDATE cotizaciones
+                   SET estatus = %s, fecha_cierre = %s, motivo_perdida = %s, nota_cierre = %s
+                   WHERE folio = %s""",
+                (estatus, fecha_cierre, motivo, nota, folio)
+            )
+
+            # Se devuelven los montos ya agregados para que el frontend actualice su
+            # estado sin tener que recargar todo el historial.
+            c.execute(
+                """SELECT COALESCE(SUM(importe), 0), COALESCE(SUM(cantidad * costo), 0)
+                   FROM cotizacion_items WHERE cotizacion_folio = %s AND aceptado""",
+                (folio,)
+            )
+            monto_aceptado, costo_aceptado = c.fetchone()
         conn.commit()
+    except HTTPException:
+        raise
     except Exception as e:
         conn.rollback()
         conn.close()
         raise HTTPException(status_code=500, detail=str(e))
     conn.close()
-    return {"message": "Estatus actualizado"}
+    return {"message": "Cierre registrado", "estatus": estatus,
+            "items_total": total_items, "items_aceptados": aceptados,
+            "monto_aceptado": float(monto_aceptado), "costo_aceptado": float(costo_aceptado)}
 
 @app.patch("/cotizaciones/{folio}/renovada")
 def update_renovada(folio: str, data: RenovadaUpdate, current_user: str = Depends(get_current_user)):
@@ -416,16 +609,45 @@ def save_cotizacion(cotizacion: Cotizacion, current_user: str = Depends(get_curr
              cotizacion.condiciones.get("garantia", ""),
              created_at)
         )
+        # Las partidas se borran y reinsertan, así que hay que rescatar las marcas de
+        # aceptación primero o reeditar una cotización ya cerrada las borraría en silencio.
+        # Se emparejan por clave+descripción porque los ids se regeneran; se guarda una
+        # lista por llave para no confundir partidas repetidas con distinta presentación.
+        c.execute(
+            """SELECT clave, descripcion, aceptado FROM cotizacion_items
+               WHERE cotizacion_folio = %s ORDER BY id""",
+            (cotizacion.folio,)
+        )
+        marcas_previas = {}
+        for clave, descripcion, aceptado in c.fetchall():
+            marcas_previas.setdefault((clave, descripcion), []).append(aceptado)
+
         c.execute("DELETE FROM cotizacion_items WHERE cotizacion_folio = %s", (cotizacion.folio,))
         for item in cotizacion.productos:
+            pendientes = marcas_previas.get((item.clave, item.descripcion))
+            aceptado = pendientes.pop(0) if pendientes else None
             c.execute(
                 '''INSERT INTO cotizacion_items
-                   (cotizacion_folio, clave, descripcion, cantidad, unidad, precio, importe, moneda, presentacion, proveedor, costo)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+                   (cotizacion_folio, clave, descripcion, cantidad, unidad, precio, importe, moneda, presentacion, proveedor, costo, aceptado)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
                 (cotizacion.folio, item.clave, item.descripcion, item.cantidad,
                  item.unidad, item.precio, item.importe, item.moneda,
-                 item.presentacion, item.proveedor, item.costo)
+                 item.presentacion, item.proveedor, item.costo, aceptado)
             )
+
+        # El conjunto de partidas pudo cambiar, así que el resultado se recalcula.
+        c.execute(
+            """SELECT COUNT(*), COUNT(*) FILTER (WHERE aceptado) FROM cotizacion_items
+               WHERE cotizacion_folio = %s AND aceptado IS NOT NULL""",
+            (cotizacion.folio,)
+        )
+        decididas, aceptadas = c.fetchone()
+        if decididas:
+            c.execute("SELECT COUNT(*) FROM cotizacion_items WHERE cotizacion_folio = %s",
+                      (cotizacion.folio,))
+            total_items = c.fetchone()[0]
+            c.execute("UPDATE cotizaciones SET estatus = %s WHERE folio = %s",
+                      (derivar_estatus(total_items, aceptadas), cotizacion.folio))
         conn.commit()
     except Exception as e:
         conn.rollback()

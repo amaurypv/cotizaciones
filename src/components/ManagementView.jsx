@@ -1,20 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, FileDown, Database, Search, Edit, Copy, Send, Mail, Eye, RefreshCw } from 'lucide-react';
+import { Trash2, FileDown, Database, Search, Edit, Copy, Send, Mail, Eye, RefreshCw, Archive } from 'lucide-react';
 import apiClient from '../utils/apiClient';
 import { generateNativePDF } from '../utils/pdfGenerator';
 import { numeroALetras } from '../utils/numeroALetras';
 import { getVigencia, VIGENCIA_META, textoDiasRestantes } from '../utils/vencimiento';
+import {
+    RESULTADO_OPTIONS, getResultadoMeta, esCerrada, estaResuelta, textoPartidas,
+} from '../utils/resultado';
+import CierreModal from './CierreModal';
 
-const ESTATUS_OPTIONS = ['Enviada', 'En revisión', 'Aprobada', 'Rechazada'];
+const ManagementView = ({ historial, setHistorial, onLoadQuote, onRegistrarCierre, onArchivarVencidas }) => {
+    const [cierreFolio, setCierreFolio] = useState(null);
+    const [archivando, setArchivando] = useState(false);
 
-const ESTATUS_STYLES = {
-    'Enviada':     'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-    'En revisión': 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
-    'Aprobada':    'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
-    'Rechazada':   'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
-};
-
-const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
+    const archivarHistorico = async () => {
+        const dias = 90;
+        if (!confirm(
+            `Se marcarán como "Sin dato" las cotizaciones que vencieron hace más de ${dias} días ` +
+            `y siguen sin resultado.\n\nNo se cuentan como perdidas: quedan fuera del cálculo de ` +
+            `conversión para no ensuciarlo. Puedes revertir cualquiera desde su ventana de resultado.\n\n¿Continuar?`
+        )) return;
+        setArchivando(true);
+        try {
+            const n = await onArchivarVencidas(dias);
+            alert(`${n} cotización${n === 1 ? '' : 'es'} archivada${n === 1 ? '' : 's'}.`);
+        } catch {
+            alert('No se pudo archivar el histórico.');
+        } finally {
+            setArchivando(false);
+        }
+    };
     const [seccionActiva, setSeccionActiva] = useState('historial');
     const [searchTerm, setSearchTerm] = useState(() => sessionStorage.getItem('searchTerm') || '');
     const [fechaDesde, setFechaDesde] = useState(() => sessionStorage.getItem('fechaDesde') || '');
@@ -116,17 +131,29 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
         }
     };
 
+    // El resumen de productos y las notas traen comas, así que hay que entrecomillar.
+    const csvCell = (valor) => {
+        const texto = String(valor ?? '');
+        return /[",\n]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
+    };
+
     const exportarCSV = () => {
         const rows = [
-            ['Fecha', 'Cliente', 'Folio', 'Productos', 'Costo', 'Total', 'Estatus'],
+            ['Fecha', 'Cliente', 'Folio', 'Productos', 'Costo', 'Total', 'Resultado',
+             'Fecha cierre', 'Partidas aceptadas', 'Partidas totales', 'Monto aceptado', 'Motivo'],
             ...filteredHistorial.map(c => [
                 new Date(c.fecha + 'T00:00:00').toLocaleDateString('es-MX'),
                 c.cliente, c.folio, c.productos,
                 (c.total_costo || 0).toFixed(2),
                 c.total.toFixed(2),
                 c.estatus || 'Enviada',
+                c.fechaCierre ? new Date(c.fechaCierre + 'T00:00:00').toLocaleDateString('es-MX') : '',
+                esCerrada(c) ? (c.itemsAceptados || 0) : '',
+                c.itemsTotal || 0,
+                esCerrada(c) ? (c.montoAceptado || 0).toFixed(2) : '',
+                c.motivoPerdida || '',
             ])
-        ].map(r => r.join(',')).join('\n');
+        ].map(r => r.map(csvCell).join(',')).join('\n');
 
         const blob = new Blob(['\uFEFF' + rows], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
@@ -203,7 +230,7 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                 className="py-2 px-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
                             >
                                 <option value="">Todos los estados</option>
-                                {ESTATUS_OPTIONS.map(e => <option key={e} value={e}>{e}</option>)}
+                                {RESULTADO_OPTIONS.map(e => <option key={e} value={e}>{e}</option>)}
                             </select>
                         </div>
 
@@ -250,6 +277,14 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                     </button>
                                 )}
                                 <button
+                                    onClick={archivarHistorico}
+                                    disabled={archivando}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                                    title="Marca como Sin dato lo vencido hace más de 90 días, sin contarlo como perdido"
+                                >
+                                    <Archive className="w-4 h-4" /> {archivando ? 'Archivando...' : 'Archivar histórico'}
+                                </button>
+                                <button
                                     onClick={exportarCSV}
                                     className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
                                 >
@@ -268,6 +303,7 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                         <th className="px-4 py-3 text-left">Folio</th>
                                         <th className="px-4 py-3 text-left">Productos</th>
                                         <th className="px-4 py-3 text-left">Vigencia</th>
+                                        <th className="px-4 py-3 text-left">Resultado</th>
                                         <th className="px-4 py-3 text-center">Acciones</th>
                                     </tr>
                                 </thead>
@@ -278,7 +314,10 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                         const vigencia = getVigencia(cot.fecha, cot.validez);
                                         const yaActualizada = !!cot.renovadaPor;
                                         const vigMeta = yaActualizada && vigencia.estado === 'vencida' ? VIGENCIA_META.vencidaActualizada : VIGENCIA_META[vigencia.estado];
-                                        const requiereRenovar = !yaActualizada && (vigencia.estado === 'vencida' || vigencia.estado === 'porVencer');
+                                        // Ya resuelta (ganada, perdida, archivada o renovada) no se ofrece renovar.
+                                        const requiereRenovar = !estaResuelta(cot) &&
+                                            (vigencia.estado === 'vencida' || vigencia.estado === 'porVencer');
+                                        const resMeta = getResultadoMeta(cot.estatus);
                                         return (
                                             <tr key={i} className={`transition-colors ${
                                                 isToday
@@ -319,6 +358,27 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                                             </span>
                                                         )}
                                                     </div>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <button
+                                                        onClick={() => setCierreFolio(cot.folio)}
+                                                        className="flex flex-col items-start gap-0.5 group"
+                                                        title="Registrar qué partidas aceptó el cliente"
+                                                    >
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold group-hover:ring-2 group-hover:ring-purple-300 dark:group-hover:ring-purple-700 ${resMeta.badge}`}>
+                                                            {resMeta.label}
+                                                        </span>
+                                                        {esCerrada(cot) && cot.itemsTotal > 0 && (
+                                                            <span className="text-xs text-gray-400 dark:text-gray-500">
+                                                                {textoPartidas(cot.itemsAceptados, cot.itemsTotal)}
+                                                            </span>
+                                                        )}
+                                                        {cot.motivoPerdida && (
+                                                            <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                                                                {cot.motivoPerdida}
+                                                            </span>
+                                                        )}
+                                                    </button>
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center justify-center gap-1">
@@ -372,7 +432,7 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                         );
                                     }) : (
                                         <tr>
-                                            <td colSpan="6" className="px-4 py-12 text-center text-gray-400 dark:text-gray-500">
+                                            <td colSpan="7" className="px-4 py-12 text-center text-gray-400 dark:text-gray-500">
                                                 No se encontraron cotizaciones con los filtros seleccionados.
                                             </td>
                                         </tr>
@@ -382,7 +442,7 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                                 {filteredHistorial.length > 0 && (
                                     <tfoot>
                                         <tr className="bg-gray-50 dark:bg-gray-700/50 border-t-2 border-gray-200 dark:border-gray-600 font-bold">
-                                            <td colSpan="5" className="px-4 py-3 text-gray-600 dark:text-gray-300 text-sm">
+                                            <td colSpan="6" className="px-4 py-3 text-gray-600 dark:text-gray-300 text-sm">
                                                 Total ({filteredHistorial.length} cotizaciones)
                                             </td>
                                             <td />
@@ -493,6 +553,14 @@ const ManagementView = ({ historial, setHistorial, onLoadQuote }) => {
                     </div>
                 )}
             </div>
+
+            {cierreFolio && (
+                <CierreModal
+                    cotizacion={historial.find(c => c.folio === cierreFolio)}
+                    onClose={() => setCierreFolio(null)}
+                    onRegistrarCierre={onRegistrarCierre}
+                />
+            )}
         </div>
     );
 };

@@ -54,6 +54,13 @@ function App() {
         estatus: cot.estatus || 'Enviada',
         renovadaPor: cot.renovada_por || null,
         fechaCreacion: cot.created_at,
+        itemsTotal: cot.items_total || 0,
+        itemsAceptados: cot.items_aceptados || 0,
+        montoAceptado: cot.monto_aceptado || 0,
+        costoAceptado: cot.costo_aceptado || 0,
+        fechaCierre: cot.fecha_cierre || null,
+        motivoPerdida: cot.motivo_perdida || null,
+        notaCierre: cot.nota_cierre || null,
       })));
     } catch {
       setError('No se pudo conectar con el servidor o la sesión expiró.');
@@ -80,6 +87,34 @@ function App() {
     } catch (e) {
       console.error('No se pudo marcar la cotización original como renovada:', e);
     }
+  };
+
+  // Registra qué partidas aceptó el cliente. El backend deriva el resultado y lo devuelve.
+  const registrarCierre = async (folio, datos) => {
+    const response = await apiClient.patch(`/cotizaciones/${folio}/cierre`, datos);
+    const { estatus, items_total, items_aceptados, monto_aceptado, costo_aceptado } = response.data;
+    setHistorialCotizaciones(prev =>
+      prev.map(c => (c.folio === folio
+        ? {
+            ...c,
+            estatus,
+            itemsTotal: items_total,
+            itemsAceptados: items_aceptados,
+            montoAceptado: monto_aceptado,
+            costoAceptado: costo_aceptado,
+            fechaCierre: datos.accion === 'reabrir' ? null : (datos.fecha_cierre || c.fechaCierre),
+            motivoPerdida: datos.accion === 'reabrir' ? null : (datos.motivo_perdida || null),
+            notaCierre: datos.accion === 'reabrir' ? null : (datos.nota_cierre || null),
+          }
+        : c))
+    );
+  };
+
+  // Archiva el histórico vencido hace más de `dias`. Recarga porque afecta a muchas filas.
+  const archivarVencidas = async (dias) => {
+    const response = await apiClient.post('/cotizaciones/archivar', { dias });
+    await fetchHistorial();
+    return response.data.archivadas;
   };
 
   const loadQuote = async (folio, asDuplicate = false, startPreview = false, renew = false) => {
@@ -228,6 +263,8 @@ function App() {
                   historial={historialCotizaciones}
                   setHistorial={setHistorialCotizaciones}
                   onLoadQuote={loadQuote}
+                  onRegistrarCierre={registrarCierre}
+                  onArchivarVencidas={archivarVencidas}
                 />
               )}
             </>
