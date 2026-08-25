@@ -4,7 +4,7 @@ import QuoteForm from './components/QuoteForm';
 import ManagementView from './components/ManagementView';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
-import apiClient, { authService } from './utils/apiClient';
+import apiClient, { authService, iniciarRenovacionAutomatica } from './utils/apiClient';
 
 const NAV_ITEMS = [
   { id: 'dashboard',   label: 'Dashboard',         icon: LayoutDashboard },
@@ -26,6 +26,19 @@ function App() {
   const [renewFromFolio, setRenewFromFolio] = useState(null);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // El token venció con la app abierta: se pide entrar de nuevo encima de la
+  // pantalla actual en vez de recargar y perder la cotización en curso.
+  const [sesionExpirada, setSesionExpirada] = useState(false);
+
+  useEffect(() => {
+    const alExpirar = () => setSesionExpirada(true);
+    window.addEventListener('sesion:expirada', alExpirar);
+    return () => window.removeEventListener('sesion:expirada', alExpirar);
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) iniciarRenovacionAutomatica();
+  }, [isAuthenticated]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
@@ -158,6 +171,10 @@ function App() {
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
+      {/* Reingreso sin perder el trabajo en pantalla; la petición que falló se reintenta sola */}
+      {sesionExpirada && (
+        <Login reautenticacion onLoginSuccess={() => setSesionExpirada(false)} />
+      )}
       {/* Overlay móvil */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/40 z-20 lg:hidden" onClick={() => setSidebarOpen(false)} />

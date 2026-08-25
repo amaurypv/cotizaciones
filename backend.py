@@ -255,6 +255,20 @@ async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequ
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
+@app.post("/token/refresh", response_model=Token)
+async def refresh_access_token(current_user: str = Depends(get_current_user)):
+    """Emite un token nuevo a partir de uno todavia vigente (sesion deslizante).
+
+    El frontend lo llama antes de que expire el token actual, de modo que una
+    sesion activa no muera a las 24 h en medio de una cotizacion. Si el token
+    ya expiro, get_current_user responde 401 y toca volver a iniciar sesion.
+    """
+    access_token = create_access_token(
+        data={"sub": current_user},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
 # --- Endpoints Protegidos ---
 @app.get("/clientes")
 def get_clientes(current_user: str = Depends(get_current_user)):

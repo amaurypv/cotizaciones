@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { Lock, User, AlertCircle } from 'lucide-react';
 import { authService } from '../utils/apiClient';
 
-const Login = ({ onLoginSuccess }) => {
-    const [username, setUsername] = useState('');
+const Login = ({ onLoginSuccess, reautenticacion = false }) => {
+    // Al reautenticar ya sabemos quién estaba trabajando: se precarga el usuario
+    // para que sólo tenga que escribir la contraseña y seguir donde iba.
+    const [username, setUsername] = useState(() => (reautenticacion ? localStorage.getItem('usuario') || '' : ''));
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -15,6 +17,7 @@ const Login = ({ onLoginSuccess }) => {
 
         try {
             await authService.login(username, password);
+            localStorage.setItem('usuario', username);
             onLoginSuccess();
         } catch (err) {
             setError(err.response?.data?.detail || 'Error al iniciar sesión. Verifique sus credenciales.');
@@ -24,17 +27,21 @@ const Login = ({ onLoginSuccess }) => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+        <div className={reautenticacion
+            ? "fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+            : "min-h-screen flex items-center justify-center bg-gray-100 px-4"}>
             <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-2xl shadow-2xl">
                 <div className="text-center">
                     <div className="mx-auto h-16 w-16 bg-blue-100 flex items-center justify-center rounded-full mb-4">
                         <Lock className="h-8 w-8 text-blue-600" />
                     </div>
                     <h2 className="text-3xl font-extrabold text-gray-900">
-                        Química GUBA
+                        {reautenticacion ? 'Tu sesión expiró' : 'Química GUBA'}
                     </h2>
                     <p className="mt-2 text-sm text-gray-600">
-                        Sistema de Cotizaciones
+                        {reautenticacion
+                            ? 'Vuelve a entrar para continuar. No se perdió nada de lo que tienes capturado.'
+                            : 'Sistema de Cotizaciones'}
                     </p>
                 </div>
 
@@ -95,7 +102,7 @@ const Login = ({ onLoginSuccess }) => {
                                     </svg>
                                     Iniciando sesión...
                                 </span>
-                            ) : 'ENTRAR AL SISTEMA'}
+                            ) : (reautenticacion ? 'CONTINUAR' : 'ENTRAR AL SISTEMA')}
                         </button>
                     </div>
                 </form>
