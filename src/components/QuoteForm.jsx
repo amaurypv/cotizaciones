@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Download, Calendar, User, FileText, Save, Database, Send } from 'lucide-react';
+import { Plus, Trash2, Download, Calendar, User, FileText, Save, Database, Send, ArrowLeft, Wand2, CheckCircle2, Package, ClipboardList, Calculator, Eye } from 'lucide-react';
 import jsPDF from 'jspdf';
 import PDFTemplate from './PDFTemplate';
 import BuscadorLista from './BuscadorLista';
+import { Tarjeta, Campo, Etiqueta, Boton, BotonIcono, Selector, SelectNativo, claseCampo, claseCampoCompacto, claseCampoInterno } from './ui';
 import { numeroALetras } from '../utils/numeroALetras';
 import { generateNativePDF } from '../utils/pdfGenerator';
 import { getClientsDB, saveClientData, getClientData, getClientNames } from '../utils/clientsDB';
@@ -27,8 +28,7 @@ const SelectConOtro = ({ label, value, options, onChange, suffix, placeholder = 
   const mostrarTexto = modoManual || (!valueEsPreset && value !== '');
   const selectValue = mostrarTexto ? OTRO_VALUE : (valueEsPreset ? value : '');
 
-  const handleSelect = (e) => {
-    const v = e.target.value;
+  const handleSelect = (v) => {
     if (v === OTRO_VALUE) {
       setModoManual(true);
       onChange('');
@@ -38,27 +38,22 @@ const SelectConOtro = ({ label, value, options, onChange, suffix, placeholder = 
     }
   };
 
+  const opciones = [
+    ...options.map((o) => ({ value: o, label: suffix ? `${o} ${suffix}` : o })),
+    { value: OTRO_VALUE, label: 'Otro...' },
+  ];
+
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
-      <select
-        value={selectValue}
-        onChange={handleSelect}
-        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white"
-      >
-        <option value="" disabled>Selecciona una opción...</option>
-        {options.map((o) => (
-          <option key={o} value={o}>{suffix ? `${o} ${suffix}` : o}</option>
-        ))}
-        <option value={OTRO_VALUE}>Otro...</option>
-      </select>
+      <Etiqueta>{label}</Etiqueta>
+      <Selector value={selectValue} options={opciones} onChange={handleSelect} />
       {mostrarTexto && (
         <input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+          className={`${claseCampo} mt-2`}
         />
       )}
     </div>
@@ -487,19 +482,16 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
     return (
       <div className="max-w-4xl mx-auto">
         <div className="mb-6 flex justify-between items-center">
-          <button
+          <Boton
+            variante="secundario"
+            icono={ArrowLeft}
             onClick={() => initialShowPreview && onExitPreview ? onExitPreview() : setShowPreview(false)}
-            className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
           >
-            {initialShowPreview && onExitPreview ? '← Volver al Historial' : '← Regresar al Formulario'}
-          </button>
-          <button
-            onClick={descargarPDF}
-            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 flex items-center space-x-2"
-          >
-            <Download className="w-4 h-4" />
-            <span>Descargar PDF</span>
-          </button>
+            {initialShowPreview && onExitPreview ? 'Volver al Historial' : 'Regresar al Formulario'}
+          </Boton>
+          <Boton icono={Download} onClick={descargarPDF}>
+            Descargar PDF
+          </Boton>
         </div>
 
         <PDFTemplate
@@ -512,48 +504,60 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
     );
   }
 
+  const actualizarCliente = (campo, valor) => setQuote({
+    ...quote,
+    cliente: { ...quote.cliente, [campo]: valor }
+  });
+
+  const actualizarCondicion = (campo, valor) => setQuote({
+    ...quote,
+    condiciones: { ...quote.condiciones, [campo]: valor }
+  });
+
+  const th = 'px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500';
+
   return (
-    <div className="max-w-full mx-auto bg-white rounded-lg shadow-lg">
-      <div className="p-10 border-b border-gray-200">
-        <h2 className="text-2xl font-bold text-gray-800 flex items-center space-x-2">
-          <FileText className="w-6 h-6 text-blue-600" />
-          <span>Nueva Cotización</span>
-        </h2>
+    <div className="max-w-screen-2xl mx-auto space-y-6">
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-marca-900 text-white shadow-sm">
+          <FileText className="w-5 h-5" />
+        </span>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 leading-tight">Nueva Cotización</h2>
+          <p className="text-sm text-gray-500">
+            {quote.folio ? <>Folio <span className="font-medium text-gray-700">{quote.folio}</span></> : 'Captura los datos y guarda para generar el folio'}
+          </p>
+        </div>
       </div>
 
-      <div className="p-10 space-y-12">
-        {/* Información básica */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Información básica */}
+      <Tarjeta titulo="Datos generales" icono={Calendar}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <Campo
+            label="Fecha"
+            type="date"
+            value={quote.fecha}
+            onChange={(e) => setQuote({ ...quote, fecha: e.target.value })}
+          />
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Calendar className="w-4 h-4 inline mr-1" />
-              Fecha
-            </label>
-            <input
-              type="date"
-              value={quote.fecha}
-              onChange={(e) => setQuote({ ...quote, fecha: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Folio
-            </label>
+            <Etiqueta>Folio</Etiqueta>
             <div className="flex">
               <input
                 type="text"
                 value={quote.folio}
                 onChange={(e) => setQuote({ ...quote, folio: e.target.value })}
                 placeholder="Ej: AXAYINDUSTRIAL23092025"
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:ring-blue-500 focus:border-blue-500"
+                className={`${claseCampo} rounded-r-none`}
               />
-              <button
+              <Boton
+                variante="secundario"
+                className="rounded-l-none border-l-0"
+                icono={Wand2}
                 onClick={() => setQuote({ ...quote, folio: generarFolio() })}
-                className="px-3 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700"
+                title="Generar folio a partir del cliente y la fecha de hoy"
               >
                 Auto
-              </button>
+              </Boton>
             </div>
           </div>
           <SelectConOtro
@@ -562,426 +566,322 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
             options={OPCIONES_CONDICIONES.validez}
             suffix="días"
             placeholder="Ej: 45"
-            onChange={(v) => setQuote({
-              ...quote,
-              condiciones: { ...quote.condiciones, validez: v }
-            })}
+            onChange={(v) => actualizarCondicion('validez', v)}
           />
         </div>
+      </Tarjeta>
 
-        {/* Información del cliente */}
-        <div className="border-t pt-10">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
-            <User className="w-5 h-5 text-blue-600" />
-            <span>Información del Cliente</span>
-          </h3>
+      {/* Información del cliente */}
+      <Tarjeta
+        titulo="Información del Cliente"
+        icono={User}
+        accion={
+          <div className="flex items-center gap-3">
+            {showClientSaved && (
+              <span className="flex items-center gap-1 text-sm font-medium text-green-700">
+                <CheckCircle2 className="w-4 h-4" />
+                Cliente guardado
+              </span>
+            )}
+            <Boton variante="secundario" tamano="sm" icono={Database} onClick={guardarDatosCliente} title="Guardar datos del cliente">
+              Guardar cliente
+            </Boton>
+          </div>
+        }
+      >
+        <div className="mb-5">
+          <Etiqueta>Buscar cliente guardado</Etiqueta>
+          <BuscadorLista
+            items={clientesBase}
+            textoBusqueda={(cte) => `${cte.nombre} ${cte.rfc || ''}`}
+            renderItem={(cte) => (
+              <>
+                {cte.nombre}
+                {cte.rfc && <span className="text-gray-500"> ({cte.rfc})</span>}
+              </>
+            )}
+            onSelect={(cte) => seleccionarCliente(cte.nombre)}
+            placeholder="Escribe el nombre o RFC del cliente..."
+            anchoMinimo={0}
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <Campo
+            label="Cliente/Empresa"
+            value={quote.cliente.nombre}
+            onChange={(e) => actualizarCliente('nombre', e.target.value)}
+            placeholder="Nombre del cliente"
+          />
+          <Campo
+            label="Contacto"
+            value={quote.cliente.contacto}
+            onChange={(e) => actualizarCliente('contacto', e.target.value)}
+            placeholder="Persona de contacto"
+          />
+          <Campo
+            label="Planta/Ubicación"
+            value={quote.cliente.planta}
+            onChange={(e) => actualizarCliente('planta', e.target.value)}
+            placeholder="Ej: ZODIAC"
+          />
+          <Campo
+            label="Teléfono"
+            type="tel"
+            value={quote.cliente.telefono}
+            onChange={(e) => actualizarCliente('telefono', e.target.value)}
+          />
+          <Campo
+            label="RFC"
+            value={quote.cliente.rfc}
+            onChange={(e) => actualizarCliente('rfc', e.target.value)}
+            placeholder="RFC del cliente"
+          />
+          <Campo
+            label="Correo electrónico"
+            type="email"
+            value={quote.cliente.email}
+            onChange={(e) => actualizarCliente('email', e.target.value)}
+            placeholder="correo@empresa.com"
+          />
+        </div>
+      </Tarjeta>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Cliente/Empresa
-              </label>
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={quote.cliente.nombre}
-                  onChange={(e) => setQuote({
-                    ...quote,
-                    cliente: { ...quote.cliente, nombre: e.target.value }
-                  })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Nombre del cliente"
-                />
-                <div className="flex space-x-2">
-                  <div className="flex-1">
-                    <BuscadorLista
-                      items={clientesBase}
-                      textoBusqueda={(cte) => `${cte.nombre} ${cte.rfc || ''}`}
-                      renderItem={(cte) => (
-                        <>
-                          {cte.nombre}
-                          {cte.rfc && <span className="text-gray-500"> ({cte.rfc})</span>}
-                        </>
-                      )}
-                      onSelect={(cte) => seleccionarCliente(cte.nombre)}
-                      placeholder="Buscar cliente por nombre o RFC..."
-                      inputClassName="py-2 text-sm rounded-md"
-                      anchoMinimo={0}
+      {/* Productos */}
+      <Tarjeta
+        titulo="Productos"
+        icono={Package}
+        sinPadding
+        accion={
+          <Boton variante="exito" tamano="sm" icono={Plus} onClick={agregarProducto}>
+            Agregar producto
+          </Boton>
+        }
+      >
+        <div className="relative overflow-x-auto">
+          <table className="w-full min-w-[1380px] table-fixed">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className={`${th} w-[6.5rem] pl-6`}>Clave</th>
+                <th className={`${th} w-[6rem]`}>Cantidad</th>
+                <th className={`${th} w-[9.5rem]`}>Unidad</th>
+                <th className={th}>Descripción</th>
+                <th className={`${th} w-[7rem]`}>Presentación</th>
+                <th className={`${th} w-[7rem]`} title="Uso interno: no aparece en el PDF">Proveedor <span className="normal-case font-normal text-gray-400">(int)</span></th>
+                <th className={`${th} w-[6rem]`} title="Uso interno: no aparece en el PDF">Costo <span className="normal-case font-normal text-gray-400">(int)</span></th>
+                <th className={`${th} w-[6.5rem]`}>Moneda</th>
+                <th className={`${th} w-[6.5rem]`}>Precio</th>
+                <th className={`${th} w-[7rem] text-right`}>Importe</th>
+                <th className={`${th} w-[5.5rem] pr-6`}><span className="sr-only">Acciones</span></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {quote.productos.map((producto, index) => (
+                <tr key={producto.id} className="align-top hover:bg-gray-50/60">
+                  <td className="px-3 py-3 pl-6">
+                    <input
+                      type="text"
+                      value={producto.clave}
+                      onChange={(e) => actualizarProducto(index, 'clave', e.target.value)}
+                      className={claseCampoCompacto}
+                      placeholder="Q001"
                     />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={guardarDatosCliente}
-                    className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center space-x-1 text-sm"
-                    title="Guardar datos del cliente"
-                  >
-                    <Database className="w-4 h-4" />
-                    <span>Guardar</span>
-                  </button>
-                </div>
-                {showClientSaved && (
-                  <div className="mt-2 p-2 bg-green-100 border border-green-300 rounded-md text-green-700 text-sm">
-                    ✅ Cliente guardado exitosamente
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Contacto
-              </label>
-              <input
-                type="text"
-                value={quote.cliente.contacto}
-                onChange={(e) => setQuote({
-                  ...quote,
-                  cliente: { ...quote.cliente, contacto: e.target.value }
-                })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Persona de contacto"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Planta/Ubicación
-              </label>
-              <input
-                type="text"
-                value={quote.cliente.planta}
-                onChange={(e) => setQuote({
-                  ...quote,
-                  cliente: { ...quote.cliente, planta: e.target.value }
-                })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Ej: ZODIAC"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Teléfono
-              </label>
-              <input
-                type="tel"
-                value={quote.cliente.telefono}
-                onChange={(e) => setQuote({
-                  ...quote,
-                  cliente: { ...quote.cliente, telefono: e.target.value }
-                })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                RFC
-              </label>
-              <input
-                type="text"
-                value={quote.cliente.rfc}
-                onChange={(e) => setQuote({
-                  ...quote,
-                  cliente: { ...quote.cliente, rfc: e.target.value }
-                })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                placeholder="RFC del cliente"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Correo electrónico
-              </label>
-              <input
-                type="email"
-                value={quote.cliente.email}
-                onChange={(e) => setQuote({
-                  ...quote,
-                  cliente: { ...quote.cliente, email: e.target.value }
-                })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                placeholder="correo@empresa.com"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Productos */}
-        <div className="border-t pt-10">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Productos</h3>
-            <button
-              onClick={agregarProducto}
-              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Agregar Producto
-            </button>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full border border-gray-300">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Clave</th>
-                  <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Cantidad</th>
-                  <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Unidad</th>
-                  <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Descripción</th>
-                  <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Presentación</th>
-                  <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Proveedor (Int)</th>
-                  <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Costo (Int)</th>
-                  <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Moneda</th>
-                  <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Precio</th>
-                  <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Importe</th>
-                  <th className="px-3 py-2 text-left text-sm font-medium text-gray-700">Acciones</th>
+                  </td>
+                  <td className="px-3 py-3">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={producto.cantidad}
+                      onChange={(e) => actualizarProducto(index, 'cantidad', e.target.value)}
+                      className={claseCampoCompacto}
+                    />
+                  </td>
+                  <td className="px-3 py-3">
+                    <SelectNativo
+                      compacto
+                      value={producto.unidad}
+                      onChange={(e) => actualizarProducto(index, 'unidad', e.target.value)}
+                    >
+                      {unidades.map(unidad => (
+                        <option key={unidad} value={unidad}>{unidad}</option>
+                      ))}
+                    </SelectNativo>
+                  </td>
+                  <td className="px-3 py-3">
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={producto.descripcion}
+                        onChange={(e) => actualizarProducto(index, 'descripcion', e.target.value)}
+                        className={claseCampoCompacto}
+                        placeholder="Descripción del producto"
+                      />
+                      <BuscadorLista
+                        compacto
+                        items={productosCatalogo}
+                        textoBusqueda={(prod) => `${prod.clave} ${prod.descripcion}`}
+                        renderItem={(prod) => (
+                          <>
+                            <span className="font-medium">{prod.clave}</span> - {prod.descripcion}
+                            <span className="text-gray-500"> - ${prod.precio} ({prod.moneda})</span>
+                          </>
+                        )}
+                        onSelect={(prod) => seleccionarProducto(index, prod)}
+                        placeholder="Buscar en catálogo..."
+                      />
+                    </div>
+                  </td>
+                  <td className="px-3 py-3">
+                    <input
+                      type="text"
+                      value={producto.presentacion}
+                      onChange={(e) => actualizarProducto(index, 'presentacion', e.target.value)}
+                      className={claseCampoCompacto}
+                      placeholder="E - 4 Lt"
+                    />
+                  </td>
+                  <td className="px-3 py-3">
+                    <input
+                      type="text"
+                      value={producto.proveedor}
+                      onChange={(e) => actualizarProducto(index, 'proveedor', e.target.value)}
+                      className={claseCampoInterno}
+                      placeholder="Info interna"
+                    />
+                  </td>
+                  <td className="px-3 py-3">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={producto.costo}
+                      onChange={(e) => actualizarProducto(index, 'costo', e.target.value)}
+                      className={claseCampoInterno}
+                    />
+                  </td>
+                  <td className="px-3 py-3">
+                    <SelectNativo
+                      compacto
+                      value={producto.moneda}
+                      onChange={(e) => actualizarProducto(index, 'moneda', e.target.value)}
+                    >
+                      <option value="M.N.">M.N.</option>
+                      <option value="USD">USD</option>
+                    </SelectNativo>
+                  </td>
+                  <td className="px-3 py-3">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={producto.precio}
+                      onChange={(e) => actualizarProducto(index, 'precio', e.target.value)}
+                      className={claseCampoCompacto}
+                    />
+                  </td>
+                  <td className="px-3 py-3 text-right">
+                    <span className="inline-block pt-2 text-sm font-semibold text-gray-900 tabular-nums">
+                      ${producto.importe.toFixed(2)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 pr-6">
+                    <div className="flex items-center gap-1">
+                      <BotonIcono
+                        icono={Save}
+                        onClick={() => guardarProductoEnBase(producto)}
+                        title="Guardar en catálogo"
+                      />
+                      <BotonIcono
+                        icono={Trash2}
+                        peligro
+                        onClick={() => eliminarProducto(index)}
+                        disabled={quote.productos.length === 1}
+                        title="Eliminar fila"
+                      />
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {quote.productos.map((producto, index) => (
-                  <tr key={producto.id} className="border-t">
-                    <td className="px-3 py-2">
-                      <input
-                        type="text"
-                        value={producto.clave}
-                        onChange={(e) => actualizarProducto(index, 'clave', e.target.value)}
-                        className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
-                        placeholder="Q001"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={producto.cantidad}
-                        onChange={(e) => actualizarProducto(index, 'cantidad', e.target.value)}
-                        className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <select
-                        value={producto.unidad}
-                        onChange={(e) => actualizarProducto(index, 'unidad', e.target.value)}
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                      >
-                        {unidades.map(unidad => (
-                          <option key={unidad} value={unidad}>{unidad}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="space-y-1">
-                        <input
-                          type="text"
-                          value={producto.descripcion}
-                          onChange={(e) => actualizarProducto(index, 'descripcion', e.target.value)}
-                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                          placeholder="Descripción del producto"
-                        />
-                        <BuscadorLista
-                          items={productosCatalogo}
-                          textoBusqueda={(prod) => `${prod.clave} ${prod.descripcion}`}
-                          renderItem={(prod) => (
-                            <>
-                              <span className="font-medium">{prod.clave}</span> - {prod.descripcion}
-                              <span className="text-gray-500"> - ${prod.precio} ({prod.moneda})</span>
-                            </>
-                          )}
-                          onSelect={(prod) => seleccionarProducto(index, prod)}
-                          placeholder="Buscar en catálogo..."
-                        />
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="text"
-                        value={producto.presentacion}
-                        onChange={(e) => actualizarProducto(index, 'presentacion', e.target.value)}
-                        className="w-24 px-2 py-1 border border-gray-300 rounded text-sm"
-                        placeholder="E - 4 Lt"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="text"
-                        value={producto.proveedor}
-                        onChange={(e) => actualizarProducto(index, 'proveedor', e.target.value)}
-                        className="w-24 px-2 py-1 border border-gray-100 bg-gray-50 rounded text-xs"
-                        placeholder="Info Interna"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={producto.costo}
-                        onChange={(e) => actualizarProducto(index, 'costo', e.target.value)}
-                        className="w-20 px-2 py-1 border border-gray-100 bg-gray-50 rounded text-xs"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <select
-                        value={producto.moneda}
-                        onChange={(e) => actualizarProducto(index, 'moneda', e.target.value)}
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                      >
-                        <option value="M.N.">M.N.</option>
-                        <option value="USD">USD</option>
-                      </select>
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={producto.precio}
-                        onChange={(e) => actualizarProducto(index, 'precio', e.target.value)}
-                        className="w-24 px-2 py-1 border border-gray-300 rounded text-sm"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className="text-sm font-medium">
-                        ${producto.importe.toFixed(2)}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => guardarProductoEnBase(producto)}
-                          className="text-blue-600 hover:text-blue-800"
-                          title="Guardar en catálogo"
-                        >
-                          <Save className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => eliminarProducto(index)}
-                          className="text-red-600 hover:text-red-800"
-                          disabled={quote.productos.length === 1}
-                          title="Eliminar fila"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </div>
+      </Tarjeta>
 
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Condiciones */}
-        <div className="border-t pt-10">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Condiciones</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Tarjeta titulo="Condiciones" icono={ClipboardList} className="lg:col-span-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <SelectConOtro
               label="Tiempo de Entrega"
               value={quote.condiciones.tiempoEntrega}
               options={OPCIONES_CONDICIONES.tiempoEntrega}
-              onChange={(v) => setQuote({
-                ...quote,
-                condiciones: { ...quote.condiciones, tiempoEntrega: v }
-              })}
+              onChange={(v) => actualizarCondicion('tiempoEntrega', v)}
             />
             <SelectConOtro
               label="Condiciones de Pago"
               value={quote.condiciones.condicionesPago}
               options={OPCIONES_CONDICIONES.condicionesPago}
-              onChange={(v) => setQuote({
-                ...quote,
-                condiciones: { ...quote.condiciones, condicionesPago: v }
-              })}
+              onChange={(v) => actualizarCondicion('condicionesPago', v)}
             />
             <SelectConOtro
               label="Lugar de Entrega"
               value={quote.condiciones.lugarEntrega}
               options={OPCIONES_CONDICIONES.lugarEntrega}
-              onChange={(v) => setQuote({
-                ...quote,
-                condiciones: { ...quote.condiciones, lugarEntrega: v }
-              })}
+              onChange={(v) => actualizarCondicion('lugarEntrega', v)}
             />
             <SelectConOtro
               label="Garantía"
               value={quote.condiciones.garantia}
               options={OPCIONES_CONDICIONES.garantia}
-              onChange={(v) => setQuote({
-                ...quote,
-                condiciones: { ...quote.condiciones, garantia: v }
-              })}
+              onChange={(v) => actualizarCondicion('garantia', v)}
             />
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Términos y Observaciones
-              </label>
+              <Etiqueta>Términos y Observaciones</Etiqueta>
               <textarea
                 value={quote.terminos}
                 onChange={(e) => setQuote({ ...quote, terminos: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                className={`${claseCampo} h-auto py-2.5`}
                 rows={4}
                 placeholder="Ej: TAMBORES DE PLASTICO DE 222 KG, PRECIOS CON TAMBOR INCLUIDO..."
               />
             </div>
           </div>
-        </div>
+        </Tarjeta>
 
-        {/* Totales */}
-        <div className="border-t pt-10">
-          <div className="flex justify-end">
-            <div className="w-80 space-y-3 bg-gray-50 p-4 rounded-lg">
-              <div className="flex justify-between">
-                <span className="font-medium">Subtotal:</span>
-                <span>${calcularSubtotal().toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-medium">IVA (16%):</span>
-                <span>${calcularIVA().toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between border-t pt-3 text-lg font-bold">
-                <span>Total:</span>
-                <span className="text-blue-600">${calcularTotal().toFixed(2)}</span>
-              </div>
+        {/* Resumen: totales y acciones de la cotización */}
+        <Tarjeta titulo="Resumen" icono={Calculator} className="lg:sticky lg:top-4">
+          <dl className="space-y-3 text-sm">
+            <div className="flex justify-between text-gray-600">
+              <dt>Subtotal</dt>
+              <dd className="tabular-nums text-gray-900">${calcularSubtotal().toFixed(2)}</dd>
+            </div>
+            <div className="flex justify-between text-gray-600">
+              <dt>IVA (16%)</dt>
+              <dd className="tabular-nums text-gray-900">${calcularIVA().toFixed(2)}</dd>
+            </div>
+            <div className="flex items-baseline justify-between border-t border-gray-200 pt-3">
+              <dt className="font-semibold text-gray-900">Total</dt>
+              <dd className="text-2xl font-bold tabular-nums text-marca-900">${calcularTotal().toFixed(2)}</dd>
+            </div>
+          </dl>
+
+          <div className="mt-6 space-y-2 border-t border-gray-100 pt-5">
+            <Boton variante="exito" icono={Save} onClick={handleSave} className="w-full">
+              Guardar Historial
+            </Boton>
+            <div className="grid grid-cols-2 gap-2">
+              <Boton icono={Send} onClick={enviarCotizacion} title="Descargar el PDF y abrir un correo para el cliente">
+                Enviar
+              </Boton>
+              <Boton icono={Download} onClick={descargarPDF} title="Descargar PDF">
+                PDF
+              </Boton>
+              <Boton variante="secundario" icono={Eye} onClick={() => setShowPreview(true)}>
+                Vista previa
+              </Boton>
+              <Boton variante="secundario" icono={Database} onClick={guardarDatosCliente} title="Guardar datos del cliente">
+                Cliente
+              </Boton>
             </div>
           </div>
-        </div>
-
-        {/* Acciones */}
-        <div className="border-t pt-10 flex justify-end space-x-4">
-          <button
-            onClick={guardarDatosCliente}
-            className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center space-x-2 shadow-sm transition-all active:scale-95"
-          >
-            <Database className="w-4 h-4" />
-            <span>Guardar Cliente</span>
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center space-x-2 shadow-sm transition-all active:scale-95"
-          >
-            <Database className="w-4 h-4" />
-            <span>Guardar Historial</span>
-          </button>
-          <button
-            onClick={() => setShowPreview(true)}
-            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center space-x-2"
-          >
-            <FileText className="w-4 h-4" />
-            <span>Vista Previa</span>
-          </button>
-          <button
-            onClick={descargarPDF}
-            className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center space-x-2"
-          >
-            <Download className="w-4 h-4" />
-            <span>PDF Liviano</span>
-          </button>
-          <button
-            onClick={enviarCotizacion}
-            className="px-6 py-2 bg-blue-700 text-white rounded-md hover:bg-blue-800 flex items-center space-x-2 shadow-sm transition-all active:scale-95"
-          >
-            <Send className="w-4 h-4" />
-            <span>Enviar Cotización</span>
-          </button>
-        </div>
+        </Tarjeta>
       </div>
     </div>
   );

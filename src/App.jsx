@@ -183,18 +183,18 @@ function App() {
       {/* Sidebar */}
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-30
-        w-60 bg-blue-900 dark:bg-gray-900 text-white flex flex-col
+        w-60 bg-marca-900 dark:bg-gray-900 text-white flex flex-col
         transform transition-transform duration-200
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         {/* Logo */}
-        <div className="flex items-center gap-3 px-5 py-5 border-b border-blue-800 dark:border-gray-700">
+        <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10 dark:border-gray-700">
           <div className="bg-white p-1.5 rounded-lg">
             <img src="/logo-guba.png" alt="Química Guba" className="w-8 h-8 object-contain" />
           </div>
           <div>
             <p className="font-bold text-sm leading-tight">QUÍMICA GUBA</p>
-            <p className="text-blue-300 dark:text-gray-400 text-xs">Cotizaciones</p>
+            <p className="text-marca-300 dark:text-gray-400 text-xs">Cotizaciones</p>
           </div>
         </div>
 
@@ -206,8 +206,8 @@ function App() {
               onClick={() => handleSetView(id)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                 currentView === id
-                  ? 'bg-white text-blue-900 shadow-sm'
-                  : 'text-blue-100 dark:text-gray-300 hover:bg-blue-800 dark:hover:bg-gray-800'
+                  ? 'bg-white/12 text-white'
+                  : 'text-marca-200 dark:text-gray-300 hover:bg-white/5 hover:text-white dark:hover:bg-gray-800'
               }`}
             >
               <Icon className="w-4 h-4 flex-shrink-0" />
@@ -217,17 +217,17 @@ function App() {
         </nav>
 
         {/* Pie del sidebar */}
-        <div className="px-3 py-4 border-t border-blue-800 dark:border-gray-700 space-y-1">
+        <div className="px-3 py-4 border-t border-white/10 dark:border-gray-700 space-y-1">
           <button
             onClick={() => setDarkMode(d => !d)}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-blue-100 dark:text-gray-300 hover:bg-blue-800 dark:hover:bg-gray-800 transition-all"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-marca-200 dark:text-gray-300 hover:bg-white/5 hover:text-white dark:hover:bg-gray-800 transition-all"
           >
             {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             {darkMode ? 'Modo claro' : 'Modo oscuro'}
           </button>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-blue-100 dark:text-gray-300 hover:bg-red-700 transition-all"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-marca-200 dark:text-gray-300 hover:bg-red-700 hover:text-white transition-all"
           >
             <LogOut className="w-4 h-4" />
             Cerrar sesión
@@ -238,7 +238,7 @@ function App() {
       {/* Contenido principal */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar móvil */}
-        <header className="lg:hidden flex items-center justify-between px-4 py-3 bg-blue-900 text-white">
+        <header className="lg:hidden flex items-center justify-between px-4 py-3 bg-marca-900 text-white">
           <button onClick={() => setSidebarOpen(true)}>
             <Menu className="w-5 h-5" />
           </button>
@@ -251,7 +251,7 @@ function App() {
         <main className="flex-1 overflow-y-auto p-4 lg:p-8">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900 dark:border-blue-400 mb-4" />
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-marca-900 dark:border-blue-400 mb-4" />
               <p className="text-gray-600 dark:text-gray-400 font-medium">Cargando datos...</p>
             </div>
           ) : error ? (

@@ -1,5 +1,26 @@
 @import "tailwindcss";
 
+/* El modo oscuro lo decide el botón del sidebar (clase .dark en <html>, ver
+   App.jsx), no la preferencia del sistema operativo. Tailwind v4 ignora
+   darkMode: 'class' de tailwind.config.js, por eso se declara aquí. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Color de marca GUBA: azul marino suave (poco saturado), base #1e3a5f.
+   Úsalo como bg-marca-900, text-marca-700, etc. */
+@theme {
+  --color-marca-50: #f1f4f8;
+  --color-marca-100: #e3e9f1;
+  --color-marca-200: #cdd8e5;
+  --color-marca-300: #b0c0d4;
+  --color-marca-400: #8aa0bd;
+  --color-marca-500: #6482a6;
+  --color-marca-600: #4a6b93;
+  --color-marca-700: #365a85;
+  --color-marca-800: #2a4a72;
+  --color-marca-900: #1e3a5f;
+  --color-marca-950: #172d4a;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -65,6 +86,14 @@ button:hover {
 
 button:active {
   transform: translateY(0);
+}
+
+/* Los componentes de ui.jsx controlan su propio hover; revert-layer
+   devuelve el valor de las clases de Tailwind en vez del efecto global. */
+.btn-plano:hover,
+.btn-plano:active {
+  transform: revert-layer;
+  box-shadow: revert-layer;
 }
 
 /* PDF Print styles */
