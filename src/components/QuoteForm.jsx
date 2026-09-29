@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Trash2, Download, Calendar, User, FileText, Save, Database, Send } from 'lucide-react';
 import jsPDF from 'jspdf';
 import PDFTemplate from './PDFTemplate';
-import CatalogoSearch from './CatalogoSearch';
+import BuscadorLista from './BuscadorLista';
 import { numeroALetras } from '../utils/numeroALetras';
 import { generateNativePDF } from '../utils/pdfGenerator';
 import { getClientsDB, saveClientData, getClientData, getClientNames } from '../utils/clientsDB';
@@ -593,22 +593,22 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
                   placeholder="Nombre del cliente"
                 />
                 <div className="flex space-x-2">
-                  <select
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        seleccionarCliente(e.target.value);
-                      }
-                    }}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    value=""
-                  >
-                    <option value="">-- Seleccionar cliente --</option>
-                    {clientesBase.map((cte, index) => (
-                      <option key={index} value={cte.nombre}>
-                        {cte.nombre} {cte.rfc ? `(${cte.rfc})` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex-1">
+                    <BuscadorLista
+                      items={clientesBase}
+                      textoBusqueda={(cte) => `${cte.nombre} ${cte.rfc || ''}`}
+                      renderItem={(cte) => (
+                        <>
+                          {cte.nombre}
+                          {cte.rfc && <span className="text-gray-500"> ({cte.rfc})</span>}
+                        </>
+                      )}
+                      onSelect={(cte) => seleccionarCliente(cte.nombre)}
+                      placeholder="Buscar cliente por nombre o RFC..."
+                      inputClassName="py-2 text-sm rounded-md"
+                      anchoMinimo={0}
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={guardarDatosCliente}
@@ -778,9 +778,17 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
                           className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                           placeholder="Descripción del producto"
                         />
-                        <CatalogoSearch
-                          productos={productosCatalogo}
+                        <BuscadorLista
+                          items={productosCatalogo}
+                          textoBusqueda={(prod) => `${prod.clave} ${prod.descripcion}`}
+                          renderItem={(prod) => (
+                            <>
+                              <span className="font-medium">{prod.clave}</span> - {prod.descripcion}
+                              <span className="text-gray-500"> - ${prod.precio} ({prod.moneda})</span>
+                            </>
+                          )}
                           onSelect={(prod) => seleccionarProducto(index, prod)}
+                          placeholder="Buscar en catálogo..."
                         />
                       </div>
                     </td>

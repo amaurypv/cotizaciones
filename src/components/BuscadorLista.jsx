@@ -7,10 +7,18 @@ const normalizar = (texto) =>
 
 const MAX_RESULTADOS = 50;
 
-// Buscador del catálogo con filtrado mientras se escribe.
+// Lista desplegable con filtrado mientras se escribe (catálogo, clientes).
 // La lista usa position: fixed porque la tabla de productos tiene scroll
 // horizontal y un dropdown absoluto quedaría recortado.
-export default function CatalogoSearch({ productos, onSelect }) {
+export default function BuscadorLista({
+  items,
+  textoBusqueda,
+  renderItem,
+  onSelect,
+  placeholder = 'Buscar...',
+  inputClassName = 'py-1 text-xs',
+  anchoMinimo = 420,
+}) {
   const [texto, setTexto] = useState('');
   const [abierto, setAbierto] = useState(false);
   const [activo, setActivo] = useState(0);
@@ -18,11 +26,11 @@ export default function CatalogoSearch({ productos, onSelect }) {
   const inputRef = useRef(null);
   const listaRef = useRef(null);
 
-  // Cada palabra escrita debe aparecer en clave o descripción, en cualquier orden
+  // Cada palabra escrita debe aparecer en el texto del item, en cualquier orden
   const palabras = normalizar(texto).split(/\s+/).filter(Boolean);
-  const filtrados = productos
-    .filter((p) => {
-      const campo = normalizar(`${p.clave} ${p.descripcion}`);
+  const filtrados = items
+    .filter((item) => {
+      const campo = normalizar(textoBusqueda(item));
       return palabras.every((w) => campo.includes(w));
     })
     .slice(0, MAX_RESULTADOS);
@@ -30,7 +38,7 @@ export default function CatalogoSearch({ productos, onSelect }) {
   const actualizarPosicion = () => {
     if (!inputRef.current) return;
     const r = inputRef.current.getBoundingClientRect();
-    setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 420) });
+    setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, anchoMinimo) });
   };
 
   useLayoutEffect(() => {
@@ -51,8 +59,8 @@ export default function CatalogoSearch({ productos, onSelect }) {
     listaRef.current?.children[activo]?.scrollIntoView({ block: 'nearest' });
   }, [activo]);
 
-  const elegir = (prod) => {
-    onSelect(prod);
+  const elegir = (item) => {
+    onSelect(item);
     setTexto('');
     setAbierto(false);
     inputRef.current?.blur();
@@ -78,7 +86,7 @@ export default function CatalogoSearch({ productos, onSelect }) {
 
   return (
     <div className="relative">
-      <Search className="w-3 h-3 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+      <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
       <input
         ref={inputRef}
         type="text"
@@ -87,8 +95,8 @@ export default function CatalogoSearch({ productos, onSelect }) {
         onFocus={() => setAbierto(true)}
         onBlur={() => setAbierto(false)}
         onKeyDown={onKeyDown}
-        className="w-full pl-6 pr-2 py-1 border border-gray-300 rounded text-xs"
-        placeholder="Buscar en catálogo..."
+        className={`w-full pl-7 pr-2 border border-gray-300 rounded ${inputClassName}`}
+        placeholder={placeholder}
       />
       {abierto && pos && (
         <ul
@@ -99,16 +107,15 @@ export default function CatalogoSearch({ productos, onSelect }) {
           {filtrados.length === 0 ? (
             <li className="px-3 py-2 text-gray-500">Sin coincidencias</li>
           ) : (
-            filtrados.map((prod, idx) => (
+            filtrados.map((item, idx) => (
               <li
-                key={`${prod.clave}-${idx}`}
+                key={idx}
                 // onMouseDown en vez de onClick: se dispara antes del blur del input
-                onMouseDown={(e) => { e.preventDefault(); elegir(prod); }}
+                onMouseDown={(e) => { e.preventDefault(); elegir(item); }}
                 onMouseEnter={() => setActivo(idx)}
                 className={`px-3 py-2 cursor-pointer ${idx === activo ? 'bg-blue-50 text-blue-900' : 'text-gray-800'}`}
               >
-                <span className="font-medium">{prod.clave}</span> - {prod.descripcion}
-                <span className="text-gray-500"> - ${prod.precio} ({prod.moneda})</span>
+                {renderItem(item)}
               </li>
             ))
           )}
