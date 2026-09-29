@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Trash2, Download, Calendar, User, FileText, Save, Database, Send } from 'lucide-react';
 import jsPDF from 'jspdf';
 import PDFTemplate from './PDFTemplate';
+import CatalogoSearch from './CatalogoSearch';
 import { numeroALetras } from '../utils/numeroALetras';
 import { generateNativePDF } from '../utils/pdfGenerator';
 import { getClientsDB, saveClientData, getClientData, getClientNames } from '../utils/clientsDB';
@@ -777,25 +778,10 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
                           className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                           placeholder="Descripción del producto"
                         />
-                        <select
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              const productoSeleccionado = productosCatalogo.find(p => p.clave === e.target.value);
-                              if (productoSeleccionado) {
-                                seleccionarProducto(index, productoSeleccionado);
-                              }
-                            }
-                          }}
-                          className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
-                          value=""
-                        >
-                          <option value="">-- Buscar en catálogo --</option>
-                          {productosCatalogo.map((prod, idx) => (
-                            <option key={idx} value={prod.clave}>
-                              {prod.clave} - {prod.descripcion} - ${prod.precio} ({prod.moneda})
-                            </option>
-                          ))}
-                        </select>
+                        <CatalogoSearch
+                          productos={productosCatalogo}
+                          onSelect={(prod) => seleccionarProducto(index, prod)}
+                        />
                       </div>
                     </td>
                     <td className="px-3 py-2">
