@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Download, Calendar, User, FileText, Save, Database, Send, ArrowLeft, Wand2, CheckCircle2, Package, ClipboardList, Calculator, Eye } from 'lucide-react';
+import { Plus, Trash2, Download, Calendar, User, FileText, Save, Database, ArrowLeft, Wand2, CheckCircle2, Package, ClipboardList, Calculator, Eye } from 'lucide-react';
 import jsPDF from 'jspdf';
 import PDFTemplate from './PDFTemplate';
 import BuscadorLista from './BuscadorLista';
@@ -360,25 +360,6 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
           rfc: datosCliente.rfc || ""
         }
       }));
-    }
-  };
-
-  const enviarCotizacion = async () => {
-    try {
-      const totals = { subtotal: calcularSubtotal(), iva: calcularIVA(), total: calcularTotal() };
-      const doc = await generateNativePDF(quote, totals, numeroALetras);
-      const folio = quote.folio || generarFolio();
-      doc.save(`cotizacion_${folio}.pdf`);
-
-      const email = quote.cliente.email || '';
-      const subject = encodeURIComponent(`Cotización ${folio} - Química GUBA`);
-      const body = encodeURIComponent(
-        `Estimado/a ${quote.cliente.nombre},\n\nAdjunto encontrará la cotización ${folio} solicitada.\n\nQuedamos a sus órdenes para cualquier aclaración.\n\nAtentamente,\nQuímica GUBA\n(614) 481-91-84\nventas@quimicaguba.com`
-      );
-      window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
-      setTimeout(() => alert('📎 El PDF fue descargado. Adjúntalo al correo que se acaba de abrir.'), 500);
-    } catch {
-      alert('Error al preparar el envío');
     }
   };
 
@@ -867,17 +848,11 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
               Guardar Historial
             </Boton>
             <div className="grid grid-cols-2 gap-2">
-              <Boton icono={Send} onClick={enviarCotizacion} title="Descargar el PDF y abrir un correo para el cliente">
-                Enviar
+              <Boton icono={Eye} onClick={() => setShowPreview(true)}>
+                Vista previa
               </Boton>
               <Boton icono={Download} onClick={descargarPDF} title="Descargar PDF">
                 PDF
-              </Boton>
-              <Boton variante="secundario" icono={Eye} onClick={() => setShowPreview(true)}>
-                Vista previa
-              </Boton>
-              <Boton variante="secundario" icono={Database} onClick={guardarDatosCliente} title="Guardar datos del cliente">
-                Cliente
               </Boton>
             </div>
           </div>
