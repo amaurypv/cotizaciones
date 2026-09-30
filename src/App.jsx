@@ -273,6 +273,7 @@ function App() {
                   initialQuote={quoteToEdit}
                   initialShowPreview={previewMode}
                   onExitPreview={() => { setPreviewMode(false); setCurrentView('management'); }}
+                  renewFromFolio={renewFromFolio}
                 />
               )}
               {currentView === 'management' && (

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Download, Calendar, User, FileText, Save, Database, ArrowLeft, Wand2, CheckCircle2, Package, ClipboardList, Calculator, Eye } from 'lucide-react';
+import { Plus, Trash2, Download, Calendar, User, Save, Database, ArrowLeft, Wand2, CheckCircle2, Package, ClipboardList, Calculator, Eye, Hash, Clock, RefreshCw, Check, CircleDot, CircleDashed } from 'lucide-react';
 import jsPDF from 'jspdf';
 import PDFTemplate from './PDFTemplate';
 import BuscadorLista from './BuscadorLista';
@@ -8,6 +8,7 @@ import { numeroALetras } from '../utils/numeroALetras';
 import { generateNativePDF } from '../utils/pdfGenerator';
 import { getClientsDB, saveClientData, getClientData, getClientNames } from '../utils/clientsDB';
 import apiClient from '../utils/apiClient';
+import { getVigencia } from '../utils/vencimiento';
 
 // Opciones predefinidas para las condiciones de la cotización
 const OPCIONES_CONDICIONES = {
@@ -60,7 +61,42 @@ const SelectConOtro = ({ label, value, options, onChange, suffix, placeholder = 
   );
 };
 
-const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPreview }) => {
+// Cómo se abrió el formulario; decide el título y la etiqueta del encabezado
+const MODOS = {
+  nueva: { label: 'Borrador', badge: 'bg-marca-50 text-marca-900 ring-marca-100' },
+  editando: { label: 'Editando', badge: 'bg-amber-50 text-amber-800 ring-amber-200' },
+  renovacion: { label: 'Renovación', badge: 'bg-teal-50 text-teal-800 ring-teal-200' },
+  copia: { label: 'Copia', badge: 'bg-gray-100 text-gray-700 ring-gray-200' },
+};
+
+const formatoFecha = (fecha) =>
+  fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+
+const Dato = ({ icono, children, apagado = false }) => {
+  const Icono = icono;
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs ${apagado ? 'text-gray-400' : 'text-gray-700'}`}>
+      <Icono className="h-3.5 w-3.5 text-gray-400" />
+      {children}
+    </span>
+  );
+};
+
+const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPreview, renewFromFolio = null }) => {
+  // Se fija al montar: App remonta el formulario (key) cada vez que lo abre, y
+  // renewFromFolio se limpia en App justo después de guardar la renovación.
+  const [modo] = useState(() => {
+    if (renewFromFolio) return 'renovacion';
+    if (initialQuote?.folio) return 'editando';
+    if (initialQuote) return 'copia';
+    return 'nueva';
+  });
+  const [folioRenovado] = useState(renewFromFolio);
+  // Foto (JSON) de la cotización tal como está en la base de datos; null si
+  // aún no existe ahí. Compararla con el estado actual dice si hay cambios.
+  const [guardadoBase, setGuardadoBase] = useState(null);
+  const [guardadaEn, setGuardadaEn] = useState(null);
+
   const printRef = useRef();
 
   const [quote, setQuote] = useState({
@@ -129,7 +165,7 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
   // Efecto para cargar cotización inicial para editar
   useEffect(() => {
     if (initialQuote) {
-      setQuote({
+      const cargada = {
         folio: initialQuote.folio,
         fecha: initialQuote.fecha,
         cliente: {
@@ -154,9 +190,24 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
           ...(initialQuote.condiciones || {})
         },
         terminos: initialQuote.terminos || ""
-      });
+      };
+      setQuote(cargada);
+      // Solo una cotización con folio ya existe en la base; copias y
+      // renovaciones son nuevas hasta que se guardan.
+      if (initialQuote.folio) setGuardadoBase(JSON.stringify(cargada));
     }
   }, [initialQuote]);
+
+  const hayCambios = guardadoBase !== null && JSON.stringify(quote) !== guardadoBase;
+  const sinGuardar = guardadoBase === null && Boolean(quote.cliente.nombre);
+
+  // Avisa antes de cerrar o recargar la pestaña con trabajo sin guardar
+  useEffect(() => {
+    if (!hayCambios && !sinGuardar) return;
+    const avisar = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', avisar);
+    return () => window.removeEventListener('beforeunload', avisar);
+  }, [hayCambios, sinGuardar]);
 
   useEffect(() => {
     if (initialShowPreview) setShowPreview(true);
@@ -445,6 +496,8 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
 
       onSave(nuevaCotizacionLocal);
       setQuote(prev => ({ ...prev, folio: folio }));
+      setGuardadoBase(JSON.stringify({ ...quote, folio }));
+      setGuardadaEn(new Date());
       alert('Cotización guardada exitosamente en la base de datos');
     } catch (error) {
       console.error('Error saving quote:', error);
@@ -497,17 +550,55 @@ const QuoteForm = ({ onSave, initialQuote, initialShowPreview = false, onExitPre
 
   const th = 'px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500';
 
+  // Una nueva o una copia, una vez guardada, se sigue editando sobre su folio
+  const modoActual = guardadoBase !== null && (modo === 'nueva' || modo === 'copia') ? 'editando' : modo;
+  const titulo = modoActual === 'nueva' ? 'Nueva cotización' : (quote.cliente.nombre || 'Cotización sin cliente');
+  const { fechaVencimiento } = getVigencia(quote.fecha, quote.condiciones.validez);
+
+  let estadoGuardado;
+  if (hayCambios) {
+    estadoGuardado = { icono: CircleDot, texto: 'Cambios sin guardar', clase: 'text-amber-700' };
+  } else if (guardadaEn) {
+    estadoGuardado = {
+      icono: Check,
+      texto: `Guardada ${guardadaEn.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`,
+      clase: 'text-green-700',
+    };
+  } else if (guardadoBase !== null) {
+    estadoGuardado = { icono: Check, texto: 'Sin cambios', clase: 'text-gray-500' };
+  } else {
+    estadoGuardado = { icono: CircleDashed, texto: 'Sin guardar', clase: 'text-gray-500' };
+  }
+  const IconoEstado = estadoGuardado.icono;
+
   return (
     <div className="max-w-screen-2xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-marca-900 text-white shadow-sm">
-          <FileText className="w-5 h-5" />
-        </span>
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 leading-tight">Nueva Cotización</h2>
-          <p className="text-sm text-gray-500">
-            {quote.folio ? <>Folio <span className="font-medium text-gray-700">{quote.folio}</span></> : 'Captura los datos y guarda para generar el folio'}
-          </p>
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="truncate text-2xl font-bold leading-tight text-gray-900">{titulo}</h2>
+            <span className={`rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${MODOS[modoActual].badge}`}>
+              {MODOS[modoActual].label}
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {quote.folio
+              ? <Dato icono={Hash}>{quote.folio}</Dato>
+              : <Dato icono={Hash} apagado>Sin folio</Dato>}
+            {modo === 'renovacion' && folioRenovado && (
+              <Dato icono={RefreshCw}>Reemplaza {folioRenovado}</Dato>
+            )}
+            {fechaVencimiento && (
+              <>
+                <Dato icono={Calendar}>{formatoFecha(new Date(quote.fecha + 'T00:00:00'))}</Dato>
+                <Dato icono={Clock}>Vence {formatoFecha(fechaVencimiento)}</Dato>
+              </>
+            )}
+          </div>
+        </div>
+        <div className={`flex items-center gap-1.5 pt-1.5 text-sm font-medium ${estadoGuardado.clase}`}>
+          <IconoEstado className="h-4 w-4" />
+          {estadoGuardado.texto}
         </div>
       </div>
 
